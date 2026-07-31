@@ -1,0 +1,132 @@
+{
+  "version": "V500.6.8-Authoritative-Outfit-Layer-Contract",
+  "sha256": "c7d032d3ac53073d82d60462f2f572825e36bea71e4eb735910183be22fd552a",
+  "fileSizeBytes": 742745,
+  "selfTests": {
+    "passed": 914,
+    "total": 914,
+    "errors": 0,
+    "warnings": 0
+  },
+  "userScenario": {
+    "copyEnabled": true,
+    "profilesTested": 9,
+    "allReleased": true,
+    "allContainLayerContract": true,
+    "allForbidTshirt": true,
+    "allForbidTankTop": true,
+    "allForbidCamisole": true,
+    "malformedRestrictions": false,
+    "profileResults": {
+      "Universal": {
+        "released": true,
+        "errors": 0,
+        "warnings": 0,
+        "validJson": true,
+        "hasContract": true,
+        "forbidsTshirt": true,
+        "forbidsTank": true,
+        "forbidsCamisole": true,
+        "malformedRestriction": false,
+        "length": 6856
+      },
+      "Gemini Natural": {
+        "released": true,
+        "errors": 0,
+        "warnings": 0,
+        "validJson": true,
+        "hasContract": true,
+        "forbidsTshirt": true,
+        "forbidsTank": true,
+        "forbidsCamisole": true,
+        "malformedRestriction": false,
+        "length": 6742
+      },
+      "Gemini Pro": {
+        "released": true,
+        "errors": 0,
+        "warnings": 0,
+        "validJson": true,
+        "hasContract": true,
+        "forbidsTshirt": true,
+        "forbidsTank": true,
+        "forbidsCamisole": true,
+        "malformedRestriction": false,
+        "length": 7307
+      },
+      "Nano Banana Pro": {
+        "released": true,
+        "errors": 0,
+        "warnings": 0,
+        "validJson": true,
+        "hasContract": true,
+        "forbidsTshirt": true,
+        "forbidsTank": true,
+        "forbidsCamisole": true,
+        "malformedRestriction": false,
+        "length": 4992
+      },
+      "GPT Image 2": {
+        "released": true,
+        "errors": 0,
+        "warnings": 0,
+        "validJson": true,
+        "hasContract": true,
+        "forbidsTshirt": true,
+        "forbidsTank": true,
+        "forbidsCamisole": true,
+        "malformedRestriction": false,
+        "length": 7067
+      },
+      "FLUX": {
+        "released": true,
+        "errors": 0,
+        "warnings": 0,
+        "validJson": true,
+        "hasContract": true,
+        "forbidsTshirt": true,
+        "forbidsTank": true,
+        "forbidsCamisole": true,
+        "malformedRestriction": false,
+        "length": 6528
+      },
+      "SDXL": {
+        "released": true,
+        "errors": 0,
+        "warnings": 0,
+        "validJson": true,
+        "hasContract": true,
+        "forbidsTshirt": true,
+        "forbidsTank": true,
+        "forbidsCamisole": true,
+        "malformedRestriction": false,
+        "length": 6740
+      },
+      "Standard JSON": {
+        "released": true,
+        "errors": 0,
+        "warnings": 0,
+        "validJson": true,
+        "hasContract": true,
+        "forbidsTshirt": true,
+        "forbidsTank": true,
+        "forbidsCamisole": true,
+        "malformedRestriction": false,
+        "length": 12048
+      },
+      "Safe JSON": {
+        "released": true,
+        "errors": 0,
+        "warnings": 0,
+        "validJson": true,
+        "hasContract": true,
+        "forbidsTshirt": true,
+        "forbidsTank": true,
+        "forbidsCamisole": true,
+        "malformedRestriction": false,
+        "length": 8205
+      }
+    }
+  },
+  "browserEnvironmentNote": "Chromium in the container is blocked by organization policy for localhost; complete logic and UI-output behavior were tested in the VM/DOM harness."
+}

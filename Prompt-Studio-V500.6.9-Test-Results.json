@@ -1,0 +1,126 @@
+{
+  "version": "V500.6.9-Nano-Banana-Strict-Constraint-Compiler",
+  "sha256": "998fd74557efc36beab14f0aafe36195ec78953ffc8311d8245d8c85f7d93685",
+  "fileSizeBytes": 761986,
+  "javascriptSyntax": true,
+  "selfTests": {
+    "passed": 924,
+    "total": 924,
+    "errors": 0,
+    "warnings": 0
+  },
+  "profileRegression": {
+    "configurations": 12,
+    "runs": 108,
+    "runtimeErrors": 0,
+    "blocked": 0,
+    "complete": true
+  },
+  "profiles": {
+    "Universal": {
+      "ok": true,
+      "length": 6217,
+      "issues": 0
+    },
+    "Gemini Natural": {
+      "ok": true,
+      "length": 5509,
+      "issues": 0
+    },
+    "Gemini Pro": {
+      "ok": true,
+      "length": 6979,
+      "issues": 0
+    },
+    "Nano Banana Pro": {
+      "ok": true,
+      "length": 2146,
+      "issues": 0
+    },
+    "GPT Image 2": {
+      "ok": true,
+      "length": 6483,
+      "issues": 0
+    },
+    "FLUX": {
+      "ok": true,
+      "length": 2878,
+      "issues": 0
+    },
+    "SDXL": {
+      "ok": true,
+      "length": 3090,
+      "issues": 0
+    },
+    "Standard JSON": {
+      "ok": true,
+      "length": 12000,
+      "issues": 0
+    },
+    "Safe JSON": {
+      "ok": true,
+      "length": 7518,
+      "issues": 0
+    }
+  },
+  "catalogIntegrity": {
+    "version": "9.0",
+    "fields": 63,
+    "entries": 751,
+    "missing": [],
+    "duplicateIds": [],
+    "unresolvedEnglish": [],
+    "complete": true
+  },
+  "migration": {
+    "cases": 3,
+    "complete": true
+  },
+  "conflicts": {
+    "cases": 4,
+    "complete": true
+  },
+  "jsonRegression": {
+    "cases": 4,
+    "complete": true
+  },
+  "resolvedEnglishIntegrity": {
+    "version": "V500.6.7-resolved-integrity-1",
+    "checked": 201,
+    "failures": [],
+    "complete": true
+  },
+  "outfitLayerContract": {
+    "complete": true,
+    "profiles": 9
+  },
+  "nanoStrict": {
+    "version": "V500.6.9-nano-strict-constraint-1",
+    "released": true,
+    "length": 3577,
+    "oneFrame": true,
+    "bothFullBody": true,
+    "openShirt": true,
+    "noUnderlayer": true,
+    "compact": true,
+    "complete": true
+  },
+  "reportedScenario": {
+    "promptLength": 3577,
+    "copyReleased": true,
+    "errors": [],
+    "warnings": [],
+    "requirements": {
+      "singleFrame": true,
+      "exactlyTwoAdults": true,
+      "bothHeadToToe": true,
+      "allFourFeet": true,
+      "noCropping": true,
+      "openShirtButtonsUndone": true,
+      "noUnderlayer": true,
+      "nonExplicitCoverage": true,
+      "shirtSkirtSocksNikeShoesPresent": true
+    }
+  },
+  "browserEnvironmentNote": "Container Chromium is blocked from opening localhost/file URLs by organization policy. JavaScript logic was executed in a VM/DOM environment; a real iPhone HTML Viewer run was not possible here."
+}
