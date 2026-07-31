@@ -1,0 +1,154 @@
+{
+  "version": "V500.6.10-Automatic-Garment-Coverage-Logic",
+  "file": "Prompt-Studio-V500.6.10-Automatic-Garment-Coverage-Logic.html",
+  "fileSizeBytes": 764611,
+  "sha256": "fdf438a120a96d80067fafc76a074bd9d1b244aa3860b964a005547effa240f1",
+  "javascriptSyntaxCheckedSeparately": true,
+  "staticChecks": {
+    "passed": 26,
+    "total": 26,
+    "failed": []
+  },
+  "checks": [
+    {
+      "name": "HTML parses",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Single app root",
+      "passed": true,
+      "detail": "1"
+    },
+    {
+      "name": "No duplicate static IDs",
+      "passed": true,
+      "detail": "[]"
+    },
+    {
+      "name": "Version title updated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "APP_VERSION updated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Export filename updated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Nano compiler version updated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Open garment remains explicitly open",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Front panels remain separated",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Natural material/posture/gravity drape",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "No extra upper layer",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Non-sexualized presentation",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "No anatomical prohibition in emitted contract",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "No new coverage UI/data option",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Opaque closed garment regression test",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Explicit layer retained regression test",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "All-profile removed-terms regression test",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Quality gate test retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Profile library retained",
+      "passed": true,
+      "detail": "PROFILE_LIBRARY_KEY, startNewProfile und saveCurrentProfile vorhanden"
+    },
+    {
+      "name": "Selfie module retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Additional person module retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "JSON profiles retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Resolved state retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Strict single-image contract retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "All four feet rule retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Integrated test definitions expanded",
+      "passed": true,
+      "detail": "ids=264, legacyCalls=211, registerCalls=12"
+    }
+  ],
+  "runtimeBrowserNote": "A complete Chromium execution of the very large integrated suite did not terminate within the container time limit. JavaScript syntax and extensive static/integrity checks were completed; the six new regression tests are embedded for execution inside the app diagnostics.",
+  "newRegressionTests": [
+    "v569.nano.garment-dependent-presentation",
+    "v5610.nano.removed-anatomical-terms",
+    "v5610.nano.open-state-binding",
+    "v5610.nano.no-extra-coverage-option",
+    "v5610.opaque.closed-no-contract",
+    "v5610.explicit-layer-kept",
+    "v5610.all-profiles-terms-clean"
+  ]
+}
