@@ -1,0 +1,139 @@
+{
+  "version": "V500.6.7-Resolved-State-Integrity-Hardening",
+  "sha256": "a87e60f12d6cb160fc837dbf59b1fa94cd534aa3db7e2b47c32f19c8557da232",
+  "fileSizeBytes": 728090,
+  "selfTests": {
+    "passed": 906,
+    "total": 906,
+    "errors": 0,
+    "warnings": 0
+  },
+  "selectionSweep": {
+    "runs": 761,
+    "gateBlocked": 0,
+    "runtime": 0,
+    "residue": 0,
+    "grammar": 0,
+    "jsonInvalid": 0
+  },
+  "profileRegression": {
+    "runs": 108,
+    "runtimeErrors": [],
+    "blocked": []
+  },
+  "profiles": {
+    "Universal": {
+      "ok": true,
+      "length": 6217,
+      "issues": 0
+    },
+    "Gemini Natural": {
+      "ok": true,
+      "length": 5509,
+      "issues": 0
+    },
+    "Gemini Pro": {
+      "ok": true,
+      "length": 6979,
+      "issues": 0
+    },
+    "Nano Banana Pro": {
+      "ok": true,
+      "length": 3093,
+      "issues": 0
+    },
+    "GPT Image 2": {
+      "ok": true,
+      "length": 6483,
+      "issues": 0
+    },
+    "FLUX": {
+      "ok": true,
+      "length": 2878,
+      "issues": 0
+    },
+    "SDXL": {
+      "ok": true,
+      "length": 3090,
+      "issues": 0
+    },
+    "Standard JSON": {
+      "ok": true,
+      "length": 11911,
+      "issues": 0
+    },
+    "Safe JSON": {
+      "ok": true,
+      "length": 7429,
+      "issues": 0
+    }
+  },
+  "jsonRegression": {
+    "results": [
+      {
+        "language": "Deutsch",
+        "profile": "standardJson",
+        "size": 11911,
+        "valid": true,
+        "underLimit": true,
+        "issues": []
+      },
+      {
+        "language": "Deutsch",
+        "profile": "safeJson",
+        "size": 7429,
+        "valid": true,
+        "underLimit": true,
+        "issues": []
+      },
+      {
+        "language": "Englisch",
+        "profile": "standardJson",
+        "size": 10769,
+        "valid": true,
+        "underLimit": true,
+        "issues": []
+      },
+      {
+        "language": "Englisch",
+        "profile": "safeJson",
+        "size": 7102,
+        "valid": true,
+        "underLimit": true,
+        "issues": []
+      }
+    ],
+    "complete": true
+  },
+  "catalogIntegrity": {
+    "version": "9.0",
+    "fields": 63,
+    "entries": 751,
+    "missing": [],
+    "duplicateIds": [],
+    "unresolvedEnglish": [],
+    "complete": true
+  },
+  "profileLibraryFunctionalTest": {
+    "start": true,
+    "step": 0,
+    "save": true,
+    "countAfterSave": 1,
+    "savedName": "Profil-Funktionstest",
+    "active": "profile-ms8oj50r-qfj8if",
+    "loadedName": "Profil-Funktionstest",
+    "loadedStep": 0,
+    "countAfterDelete": 0,
+    "newDataComplete": true,
+    "ok": true
+  },
+  "criticalScenario": {
+    "profilesTested": 9,
+    "allReleased": true,
+    "copyEnabled": true,
+    "resolvedCamera": "selfie.mirror_full",
+    "peopleCount": 2,
+    "activeLowerGarment": "skirt"
+  },
+  "browserEnvironmentNote": "Container Chromium blocks file:// links by organization policy; logic was tested through VM/DOM, profile-library functions, catalog sweep and profile regression."
+}
