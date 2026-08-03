@@ -231,8 +231,33 @@ Application-Repositories. Bestehende `ProjectRepository`- und
 `ProjectRevisionRepository`-Ports stellen die benötigten Listenmethoden bereit.
 Die versionierten Record-Typen liegen unter
 `contracts/storage/projections/` und verwenden ausschließlich Storage-Typen
-und primitive Rohwerte. Application Mapper übersetzen sie in validierte
-Summary-Modelle und anschließend in ViewModels.
+und primitive Rohwerte. Separate Read-Mapper unter `application/mappers/`
+übersetzen gelesene Projektionsrecords in validierte Summary-Modelle und
+anschließend in ViewModels.
+
+#### 8.1.1 Projektor-Contracts und Injection
+
+`ProjectCatalogProjector` und `RevisionCatalogProjector` sind versionierte
+Storage-Contracts unter `contracts/storage/projections/`. Ihre Signaturen
+verwenden ausschließlich die dort definierten Projektionsrecords sowie die
+versionierten Persistence-Record-Typen aus `contracts/storage/`; sie
+importieren weder Domain- noch Application-Typen.
+
+Die konkreten Implementierungen liegen unter `application/mappers/`.
+`bootstrap/` ist der einzige Ort, der diese Implementierungen erzeugt und in
+den IndexedDB-Adapter injiziert. Infrastructure kennt ausschließlich die
+Projektor-Contracts und die Storage-Record-Typen. Infrastructure importiert
+keine Module aus `application/`, erzeugt keine Projektor-Implementierung und
+besitzt keinen alternativen Mapperpfad.
+
+Beide Projektoren sind rein, synchron und deterministisch. Sie führen keine
+Datenbankzugriffe, keine Zeit-, Zufalls-, Netzwerk- oder UI-Operationen aus.
+Alle benötigten Werte stehen im jeweiligen Eingaberecord. Jeder Contract stellt
+seine unveränderliche `mapperVersion` für Diagnose, Migrationsbericht und
+Contract-Tests bereit. Der IndexedDB-Adapter verwendet für die Migration und
+für reguläre Schreibvorgänge dieselben von `bootstrap/` injizierten,
+versionierten Implementierungen. Eine Änderung der Projektionssemantik
+erfordert eine neue Mapperversion und eine dazugehörige Schema-Migration.
 
 ### 8.2 ProjectCatalog
 
@@ -242,6 +267,7 @@ Ein Katalogdatensatz enthält ausschließlich listenrelevante Daten:
 interface ProjectCatalogRecord {
   readonly projectId: string;
   readonly schemaVersion: 2;
+  readonly displayName: string;
   readonly normalizedName: string;
   readonly description: string;
   readonly normalizedDescription: string;
@@ -257,6 +283,13 @@ interface ProjectCatalogRecord {
 }
 ```
 
+`displayName` ist der unveränderte sichtbare Projektname aus dem validierten
+Project-Persistence-Record. Er übernimmt Groß-/Kleinschreibung, Unicode-Zeichen
+und sichtbare Namenszusätze exakt und wird weder normalisiert noch für die
+Suche umgeschrieben. `normalizedName` ist ausschließlich der daraus durch den
+versionierten `ProjectCatalogProjector` erzeugte kanonische Such- und
+Sortierschlüssel. Die UI zeigt niemals `normalizedName` als Projektnamen an.
+
 Indizes:
 
 - `updatedAt`,
@@ -268,9 +301,14 @@ Indizes:
 - `lifecycleStatus`,
 - `tagIds` als Multi-Entry-Index.
 
-Ein einziger versionierter Mapper erzeugt den Katalogdatensatz aus der
-Project-Entität. Jede Projektmutation aktualisiert `Projects` und
-`ProjectCatalog` in derselben Transaktion. Katalogdaten dürfen nie zur
+Ein einziger versionierter `ProjectCatalogProjector` erzeugt den vollständigen
+Katalogdatensatz aus dem Project-Persistence-Record. Create, Rename, Duplicate,
+Import, Wiederherstellung aus dem Papierkorb, Revisionswiederherstellung und
+Migration erzeugen beziehungsweise aktualisieren `displayName` und
+`normalizedName` stets gemeinsam über diese eine injizierte Implementierung.
+Kein Schreibpfad darf eines der beiden Felder direkt oder unabhängig vom
+anderen setzen. `Projects` und `ProjectCatalog` werden einschließlich beider
+Namenswerte in derselben Transaktion aktualisiert. Katalogdaten dürfen nie zur
 fachlichen Wiederherstellung eines Projekts verwendet werden.
 
 Die rohen Stringwerte für Profil, Lebenszyklus und Revisionsgrund sind
@@ -310,9 +348,22 @@ Die IndexedDB-`versionchange`-Transaktion:
 
 1. erstellt beide Projektionsstores und Indizes,
 2. liest bestehende Projects und ProjectRevisions,
-3. erzeugt Projektionen über dieselben Mapper wie der Produktivpfad,
-4. validiert Anzahl, IDs, Sequenzen und Hashreferenzen,
+3. ruft die von `bootstrap/` in den IndexedDB-Adapter injizierten
+   `ProjectCatalogProjector`- und `RevisionCatalogProjector`-Implementierungen
+   in derselben Version wie reguläre Schreibvorgänge auf,
+4. validiert Anzahl, IDs, `displayName`-/`normalizedName`-Paare, Sequenzen und
+   Hashreferenzen,
 5. committed vollständig oder bricht vollständig ab.
+
+Die Migration besitzt keine eigene Projektionslogik. Sie liest die
+autoritativen Persistence Records innerhalb der `versionchange`-Transaktion,
+übergibt jeden Record synchron an den passenden reinen Projektor und schreibt
+dessen Ergebnis in den zugehörigen Projektionsstore. Der Projektor erhält
+weder eine Transaktion noch einen Object Store und kann daher selbst keine
+Datenbankzugriffe ausführen. Für bestehende Schema-1-Projekte übernimmt er den
+sichtbaren Projektnamen unverändert als `displayName` und erzeugt daraus neu
+den kanonischen `normalizedName`; ein sichtbarer Name wird niemals aus einem
+normalisierten Suchwert rekonstruiert.
 
 Bestehende Records werden weder gelöscht noch still umgedeutet. Bei einem
 Fehler bleibt Schema 1 intakt und die Anwendung startet kontrolliert im
@@ -449,6 +500,13 @@ Alle schreibenden Operationen sind serialisierbare, typisierte Commands:
 | `ImportProjectCommand` | validierter Importkandidat | Project, Revision, Katalog und Importbericht |
 | `SetOpenLastProjectOnStartCommand` | boolean | typisierte Einstellung |
 
+Bei Create, Rename, Duplicate, Import, `RestoreProjectFromTrashCommand` und
+`RestoreRevisionCommand` erhält der IndexedDB-Adapter den vollständigen
+Project-Persistence-Record. Er erzeugt innerhalb derselben Multi-Store-
+Transaktion über den injizierten `ProjectCatalogProjector` sowohl
+`displayName` als auch `normalizedName`. Die Schema-Migration 1 nach 2 nutzt
+dieselbe injizierte Projektorimplementierung und dieselbe Mapperversion.
+
 Command-Handler prüfen Payloads erneut. UI-Validierung ist keine
 Sicherheits- oder Integritätsgrenze. Gleichzeitige Navigation und destruktive
 Commands werden pro Projekt serialisiert; erneute Auslösung erzeugt keine
@@ -528,6 +586,12 @@ interface ProjectCardViewModel {
   readonly actions: readonly ProjectActionViewModel[];
 }
 ```
+
+`ProjectCardViewModel.name` wird ausschließlich aus
+`ProjectCatalogRecord.displayName` abgeleitet. Dashboard-, Such-, Filter- und
+Sortierqueries lesen `ProjectCatalog` und laden für Karten oder sichtbare Namen
+keine vollständigen Records aus `Projects`. Suche und kanonische Namenssortierung
+verwenden `normalizedName`; die Darstellung verwendet `displayName`.
 
 ### 14.4 Weitere ViewModels
 
@@ -936,8 +1000,15 @@ Zusätzliche Contract-Tests prüfen:
 
 - keine UI-Imports aus Repositories oder Persistence,
 - atomare Project-/Catalog- und Revision-/Catalog-Schreibvorgänge,
-- Migration 1 nach 2 und kontrollierten Abbruch,
-- keine Blob-Ladevorgänge in Listenqueries,
+- atomare `displayName`-/`normalizedName`-Aktualisierung bei Create, Rename,
+  Duplicate, Import, beiden Restore-Pfaden und Migration,
+- Projektor-Contracts unter `contracts/storage/projections/`, Implementierungen
+  unter `application/mappers/` und ausschließliche Injection durch `bootstrap/`,
+- keine Application-Imports in Infrastructure,
+- reine, synchrone und deterministische Projektoren ohne Datenbankzugriffe,
+- identische injizierte Projektorimplementierungen und Mapperversionen für
+  Migration 1 nach 2 und reguläre Schreibvorgänge sowie kontrollierten Abbruch,
+- keine Project- oder Blob-Ladevorgänge in Dashboard-Listenqueries,
 - Feature Flags nur über ViewModels,
 - keine Promptmodule im Phase-2-Änderungsumfang.
 
@@ -1051,6 +1122,12 @@ Phase 2 ist abgeschlossen, wenn:
 - UI, Domain und Persistence getrennt bleiben,
 - Projects und ProjectCatalog sowie ProjectRevisions und RevisionCatalog atomar
   konsistent bleiben,
+- `displayName` und `normalizedName` in allen definierten Schreib- und
+  Migrationspfaden atomar durch denselben versionierten Projektor entstehen,
+- Infrastructure keine Application-Module importiert und beide reinen
+  Projektoren ausschließlich durch `bootstrap/` injiziert werden,
+- das Dashboard sichtbare Projektnamen vollständig aus `ProjectCatalog` liest
+  und dafür keine vollständigen Project-Datensätze lädt,
 - Suche, Filter und Sortierung die definierte Semantik erfüllen,
 - endgültige Löschung bestätigt, atomar und assetreferenzsicher ist,
 - Wiederherstellung eine neue Revision erzeugt und Historie bewahrt,
