@@ -1,0 +1,23 @@
+{
+  "name": "prompt-studio-v600-phase1-foundation",
+  "private": true,
+  "version": "600.0.0-phase1-foundation",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run && node --test tests/reference/reference-integrity.test.mjs",
+    "test:unit": "vitest run tests/unit --passWithNoTests",
+    "test:integration": "vitest run tests/integration --passWithNoTests",
+    "test:browser": "playwright test tests/browser --pass-with-no-tests",
+    "build": "node scripts/build.mjs",
+    "verify:artifact": "node scripts/verify-single-html.mjs",
+    "verify": "npm run typecheck && npm run build && npm test && npm run verify:artifact"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "esbuild": "0.28.1",
+    "fake-indexeddb": "6.2.5",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}
