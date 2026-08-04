@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import {
   basename,
@@ -138,6 +139,15 @@ async function verifyV600(configuration) {
     issues.push({
       code: "V600_VERSION_METADATA_STALE",
       detail: "visible V500 version text is forbidden",
+    });
+  }
+  const staleDomSinkValues = findStaticVisibleScriptValues(artifact).filter((value) =>
+    /\bPrompt Studio V500(?:\.\d+)+\b/i.test(value),
+  );
+  if (staleDomSinkValues.length > 0) {
+    issues.push({
+      code: "V600_VERSION_METADATA_STALE",
+      detail: "a visible DOM sink contains static Prompt Studio V500 version text",
     });
   }
 
@@ -281,38 +291,153 @@ function findExportFilenames(artifact) {
   for (const scriptMatch of artifact.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
     const script = scriptMatch[1];
     if (script === undefined) continue;
-    const scanner = createScanner(true, LanguageVariant.Standard, script);
-    const tokens = [];
-    for (let kind = scanner.scan(); kind !== SyntaxKind.EndOfFile; kind = scanner.scan()) {
-      tokens.push({ kind, value: scanner.getTokenValue() });
+    const tokens = scanScript(script);
+    const bindings = collectStaticBindings(tokens);
+
+    for (const [name] of bindings) {
+      if (!isDocumentedExportName(name)) continue;
+      const value = resolveStaticBinding(name, bindings);
+      if (value !== null) fileNames.push(value);
     }
-    for (let index = 0; index < tokens.length - 2; index += 1) {
-      const property = tokens[index];
-      const separator = tokens[index + 1];
-      const value = tokens[index + 2];
-      const propertyName =
-        property.kind === SyntaxKind.Identifier || property.kind === SyntaxKind.StringLiteral
-          ? property.value.toLowerCase()
-          : null;
-      const isFileNameProperty =
-        propertyName === "download" ||
-        propertyName === "filename";
-      const isAssignment =
-        separator.kind === SyntaxKind.EqualsToken || separator.kind === SyntaxKind.ColonToken;
-      const isStaticString =
-        value.kind === SyntaxKind.StringLiteral ||
-        value.kind === SyntaxKind.NoSubstitutionTemplateLiteral;
+
+    for (let index = 0; index < tokens.length; index += 1) {
       if (
-        isFileNameProperty &&
-        isAssignment &&
-        isStaticString &&
-        value.value.toLowerCase().endsWith(".json")
+        tokens[index]?.kind === SyntaxKind.Identifier &&
+        tokens[index]?.value === "download" &&
+        tokens[index - 1]?.kind === SyntaxKind.DotToken &&
+        tokens[index + 1]?.kind === SyntaxKind.EqualsToken
       ) {
-        fileNames.push(value.value);
+        const value = resolveStaticToken(tokens[index + 2], bindings);
+        if (value !== null) fileNames.push(value);
+        continue;
+      }
+      if (
+        tokens[index]?.kind === SyntaxKind.StringLiteral &&
+        tokens[index]?.value.toLowerCase() === "download" &&
+        tokens[index - 1]?.kind === SyntaxKind.OpenBracketToken &&
+        tokens[index + 1]?.kind === SyntaxKind.CloseBracketToken &&
+        tokens[index + 2]?.kind === SyntaxKind.EqualsToken
+      ) {
+        const value = resolveStaticToken(tokens[index + 3], bindings);
+        if (value !== null) fileNames.push(value);
+        continue;
+      }
+      if (
+        tokens[index]?.kind === SyntaxKind.Identifier &&
+        tokens[index]?.value === "setAttribute" &&
+        tokens[index - 1]?.kind === SyntaxKind.DotToken &&
+        tokens[index + 1]?.kind === SyntaxKind.OpenParenToken &&
+        tokens[index + 2]?.kind === SyntaxKind.StringLiteral &&
+        tokens[index + 2]?.value.toLowerCase() === "download" &&
+        tokens[index + 3]?.kind === SyntaxKind.CommaToken
+      ) {
+        const value = resolveStaticToken(tokens[index + 4], bindings);
+        if (value !== null) fileNames.push(value);
       }
     }
   }
-  return fileNames;
+  return [...new Set(fileNames)];
+}
+
+function scanScript(script) {
+  const scanner = createScanner(true, LanguageVariant.Standard, script);
+  const tokens = [];
+  for (let kind = scanner.scan(); kind !== SyntaxKind.EndOfFile; kind = scanner.scan()) {
+    tokens.push({ kind, value: scanner.getTokenValue() });
+  }
+  return tokens;
+}
+
+function collectStaticBindings(tokens) {
+  const bindings = new Map();
+  for (let index = 0; index < tokens.length - 3; index += 1) {
+    if (
+      tokens[index]?.kind !== SyntaxKind.ConstKeyword ||
+      tokens[index + 1]?.kind !== SyntaxKind.Identifier ||
+      tokens[index + 2]?.kind !== SyntaxKind.EqualsToken
+    ) {
+      continue;
+    }
+    const value = tokens[index + 3];
+    if (isStaticStringToken(value) || value?.kind === SyntaxKind.Identifier) {
+      bindings.set(tokens[index + 1].value, value);
+    }
+  }
+  return bindings;
+}
+
+function resolveStaticToken(token, bindings, visited = new Set()) {
+  if (isStaticStringToken(token)) return token.value;
+  if (token?.kind !== SyntaxKind.Identifier) return null;
+  return resolveStaticBinding(token.value, bindings, visited);
+}
+
+function resolveStaticBinding(name, bindings, visited = new Set()) {
+  if (visited.has(name)) return null;
+  const value = bindings.get(name);
+  if (value === undefined) return null;
+  const nextVisited = new Set(visited);
+  nextVisited.add(name);
+  return resolveStaticToken(value, bindings, nextVisited);
+}
+
+function isDocumentedExportName(name) {
+  return /^(?:export|download)(?:_?file)?_?name$/i.test(name);
+}
+
+function isStaticStringToken(token) {
+  return (
+    token?.kind === SyntaxKind.StringLiteral ||
+    token?.kind === SyntaxKind.NoSubstitutionTemplateLiteral
+  );
+}
+
+function findStaticVisibleScriptValues(artifact) {
+  const values = [];
+  const propertySinks = new Set(["innerHTML", "innerText", "textContent"]);
+  for (const scriptMatch of artifact.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
+    const script = scriptMatch[1];
+    if (script === undefined) continue;
+    const tokens = scanScript(script);
+    const bindings = collectStaticBindings(tokens);
+    for (let index = 0; index < tokens.length; index += 1) {
+      const token = tokens[index];
+      if (
+        token?.kind === SyntaxKind.Identifier &&
+        propertySinks.has(token.value) &&
+        tokens[index - 1]?.kind === SyntaxKind.DotToken &&
+        tokens[index + 1]?.kind === SyntaxKind.EqualsToken
+      ) {
+        const value = resolveStaticToken(tokens[index + 2], bindings);
+        if (value !== null) values.push(value);
+        continue;
+      }
+      if (
+        token?.kind === SyntaxKind.Identifier &&
+        token.value === "insertAdjacentHTML" &&
+        tokens[index - 1]?.kind === SyntaxKind.DotToken &&
+        tokens[index + 1]?.kind === SyntaxKind.OpenParenToken &&
+        isStaticStringToken(tokens[index + 2]) &&
+        tokens[index + 3]?.kind === SyntaxKind.CommaToken
+      ) {
+        const value = resolveStaticToken(tokens[index + 4], bindings);
+        if (value !== null) values.push(value);
+        continue;
+      }
+      if (
+        token?.kind === SyntaxKind.Identifier &&
+        (token.value === "write" || token.value === "writeln") &&
+        tokens[index - 1]?.kind === SyntaxKind.DotToken &&
+        tokens[index - 2]?.kind === SyntaxKind.Identifier &&
+        tokens[index - 2]?.value === "document" &&
+        tokens[index + 1]?.kind === SyntaxKind.OpenParenToken
+      ) {
+        const value = resolveStaticToken(tokens[index + 2], bindings);
+        if (value !== null) values.push(value);
+      }
+    }
+  }
+  return values;
 }
 
 function readVisibleText(artifact) {
@@ -379,17 +504,68 @@ function validateIphoneEvidence(evidence) {
     }
   }
 
+  const screenshotHashes = [];
   for (const label of ["Safari", "HTML Viewer"]) {
-    const escapedLabel = escapeRegExp(label);
-    const pattern = new RegExp(
-      `^- ${escapedLabel}: !\\[[^\\]\\n]+\\]\\((?!https?:|data:)[^)\\n]+\\.(?:png|jpe?g|webp)\\)$`,
-      "gim",
-    );
-    if ([...evidence.matchAll(pattern)].length !== 1) {
-      issues.push(`${label} screenshot must be one local Markdown image`);
-    }
+    const screenshotHash = validateEmbeddedScreenshot(evidence, label, issues);
+    if (screenshotHash !== null) screenshotHashes.push(screenshotHash);
+  }
+  if (screenshotHashes.length === 2 && screenshotHashes[0] === screenshotHashes[1]) {
+    issues.push("Safari and HTML Viewer screenshot payloads must be different");
   }
   return issues;
+}
+
+function validateEmbeddedScreenshot(evidence, label, issues) {
+  const escapedLabel = escapeRegExp(label);
+  const pattern = new RegExp(
+    `^- ${escapedLabel}: !\\[[^\\]\\n]+\\]\\(data:image\\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})\\)$`,
+    "gim",
+  );
+  const matches = [...evidence.matchAll(pattern)];
+  if (matches.length !== 1 || matches[0]?.[1] === undefined || matches[0]?.[2] === undefined) {
+    issues.push(`${label} screenshot must be exactly one embedded image data URI`);
+    return null;
+  }
+
+  const mimeSubtype = matches[0][1].toLowerCase();
+  const payload = matches[0][2];
+  if (payload.length % 4 !== 0) {
+    issues.push(`${label} screenshot must contain strict base64 data`);
+    return null;
+  }
+  const bytes = Buffer.from(payload, "base64");
+  if (bytes.length < 16 || bytes.toString("base64") !== payload) {
+    issues.push(`${label} screenshot must contain non-empty strict base64 data`);
+    return null;
+  }
+  if (!hasImageMagicBytes(bytes, mimeSubtype)) {
+    issues.push(`${label} screenshot MIME type does not match its magic bytes`);
+    return null;
+  }
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function hasImageMagicBytes(bytes, mimeSubtype) {
+  if (mimeSubtype === "png") {
+    return (
+      bytes.length >= 24 &&
+      bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) &&
+      bytes.subarray(12, 16).toString("ascii") === "IHDR"
+    );
+  }
+  if (mimeSubtype === "jpeg") {
+    return (
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff &&
+      bytes.at(-2) === 0xff &&
+      bytes.at(-1) === 0xd9
+    );
+  }
+  return (
+    bytes.subarray(0, 4).toString("ascii") === "RIFF" &&
+    bytes.subarray(8, 12).toString("ascii") === "WEBP"
+  );
 }
 
 function readUniqueField(evidence, label, issues) {

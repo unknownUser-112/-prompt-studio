@@ -8,6 +8,10 @@ import { afterEach, describe, expect, it } from "vitest";
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
 const OUTPUT_FILE = resolve("dist/Prompt-Studio-V600.0.0-Phase1-Foundation.html");
+const SAFARI_SCREENSHOT_DATA =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const HTML_VIEWER_SCREENSHOT_DATA =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlKAAAAAASUVORK5CYII=";
 const COMPLETE_IPHONE_EVIDENCE = `# Phase 1 iPhone Viewer Verification
 
 Status: PASS
@@ -34,8 +38,8 @@ HTML Viewer Version: 2.4.1
 
 ## Screenshot Evidence
 
-- Safari: ![Safari verification](screenshots/safari-pass.png)
-- HTML Viewer: ![HTML Viewer verification](screenshots/html-viewer-pass.png)
+- Safari: ![Safari verification](${SAFARI_SCREENSHOT_DATA})
+- HTML Viewer: ![HTML Viewer verification](${HTML_VIEWER_SCREENSHOT_DATA})
 `;
 
 afterEach(async () => {
@@ -198,7 +202,7 @@ describe("V600 source integrity release contract", () => {
       evidence: COMPLETE_IPHONE_EVIDENCE
         .replace("Device Model: iPhone 15 Pro", "Device Model: iPhone Simulator")
         .replace(
-          "- Safari: ![Safari verification](screenshots/safari-pass.png)",
+          `- Safari: ![Safari verification](${SAFARI_SCREENSHOT_DATA})`,
           "- Safari: PASS",
         ),
     });
@@ -208,6 +212,65 @@ describe("V600 source integrity release contract", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("V600_IPHONE_EVIDENCE_INVALID");
     expect(result.stderr).toContain("Device Model");
+    expect(result.stderr).toContain("Safari screenshot");
+  });
+
+  it("rejects dead or external screenshot links", async () => {
+    const fixture = await writeV600AuditFixture({
+      evidence: COMPLETE_IPHONE_EVIDENCE
+        .replace(SAFARI_SCREENSHOT_DATA, "screenshots/missing-safari.png")
+        .replace(HTML_VIEWER_SCREENSHOT_DATA, "https://example.test/viewer.png"),
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("V600_IPHONE_EVIDENCE_INVALID");
+    expect(result.stderr).toContain("embedded image data");
+  });
+
+  it("rejects an embedded screenshot whose MIME type does not match its magic bytes", async () => {
+    const fixture = await writeV600AuditFixture({
+      evidence: COMPLETE_IPHONE_EVIDENCE.replace(
+        SAFARI_SCREENSHOT_DATA,
+        "data:image/png;base64,VGhpcyBpcyBub3QgYSBQTkcgZmlsZS4=",
+      ),
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("V600_IPHONE_EVIDENCE_INVALID");
+    expect(result.stderr).toContain("magic bytes");
+  });
+
+  it("rejects identical Safari and HTML Viewer screenshot payloads", async () => {
+    const fixture = await writeV600AuditFixture({
+      evidence: COMPLETE_IPHONE_EVIDENCE.replace(
+        HTML_VIEWER_SCREENSHOT_DATA,
+        SAFARI_SCREENSHOT_DATA,
+      ),
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("V600_IPHONE_EVIDENCE_INVALID");
+    expect(result.stderr).toContain("must be different");
+  });
+
+  it("rejects a missing embedded screenshot", async () => {
+    const fixture = await writeV600AuditFixture({
+      evidence: COMPLETE_IPHONE_EVIDENCE.replace(
+        `- Safari: ![Safari verification](${SAFARI_SCREENSHOT_DATA})\n`,
+        "",
+      ),
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("V600_IPHONE_EVIDENCE_INVALID");
     expect(result.stderr).toContain("Safari screenshot");
   });
 
@@ -268,6 +331,51 @@ describe("V600 source integrity release contract", () => {
     expect(result.stderr).toContain("V600_VERSION_METADATA_STALE");
   });
 
+  it("rejects a static V500 product version assigned to a visible DOM sink", async () => {
+    const fixture = await writeV600AuditFixture({
+      artifact: {
+        script:
+          "document.getElementById('app').textContent = 'Prompt Studio V500.9.9'",
+      },
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("V600_VERSION_METADATA_STALE");
+  });
+
+  it("resolves local constant aliases assigned to a visible DOM sink", async () => {
+    const fixture = await writeV600AuditFixture({
+      artifact: {
+        script: [
+          "const LABEL = 'Prompt Studio V500.9.9'",
+          "const visibleAlias = LABEL",
+          "document.getElementById('app').textContent = visibleAlias",
+        ].join(";"),
+      },
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("V600_VERSION_METADATA_STALE");
+  });
+
+  it("allows technical V500 paths outside visible DOM sinks", async () => {
+    const fixture = await writeV600AuditFixture({
+      artifact: {
+        script:
+          "const migrationSource = 'reference/v500.6.11/data.json'; const legacyImportVersion = 'V500.6.11'",
+      },
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("SOURCE_INTEGRITY_OK");
+  });
+
   it("rejects a non-V600 static JSON export filename", async () => {
     const fixture = await writeV600AuditFixture({
       artifact: { script: "anchor.download='wrong-release-project.json'" },
@@ -295,6 +403,70 @@ describe("V600 source integrity release contract", () => {
       artifact: {
         script:
           "anchor.download=userProvidedName; const template=`prompt-studio-${version}.json`",
+      },
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("SOURCE_INTEGRITY_OK");
+  });
+
+  it("rejects an invalid JSON export name reached through local constant aliases", async () => {
+    const fixture = await writeV600AuditFixture({
+      artifact: {
+        script: [
+          "const EXPORT_NAME = 'wrong-release-project.json'",
+          "const localAlias = EXPORT_NAME",
+          "anchor.download = localAlias",
+        ].join(";"),
+      },
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("V600_EXPORT_FILENAME_INVALID");
+  });
+
+  it("resolves generic local alias chains used by an actual download sink", async () => {
+    const fixture = await writeV600AuditFixture({
+      artifact: {
+        script: [
+          "const baseName = 'wrong-alias-project.json'",
+          "const localAlias = baseName",
+          "anchor.download = localAlias",
+        ].join(";"),
+      },
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("V600_EXPORT_FILENAME_INVALID");
+  });
+
+  it("accepts a valid JSON export name reached through a local constant alias", async () => {
+    const fixture = await writeV600AuditFixture({
+      artifact: {
+        script: [
+          "const EXPORT_NAME = 'prompt-studio-v600-project.json'",
+          "const localAlias = EXPORT_NAME",
+          "anchor.download = localAlias",
+        ].join(";"),
+      },
+    });
+
+    const result = await runV600Audit(fixture);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("SOURCE_INTEGRITY_OK");
+  });
+
+  it("ignores unrelated object filename fields", async () => {
+    const fixture = await writeV600AuditFixture({
+      artifact: {
+        script: "const note = { filename: 'notes.json', body: 'offline notes' }; void note",
       },
     });
 
@@ -506,6 +678,36 @@ describe("V600 CSP contract", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("CSP_DUPLICATE_ATTRIBUTE");
+  });
+
+  it("rejects a duplicate content attribute when the network policy is unquoted", async () => {
+    const directory = await createTemporaryDirectory();
+    const artifactPath = join(directory, "duplicate-unquoted-content.html");
+    await writeFile(
+      artifactPath,
+      '<meta http-equiv=Content-Security-Policy content=default-src&#32;* content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; connect-src \'none\'; font-src \'none\'; object-src \'none\'; base-uri \'none\'; form-action \'none\'; worker-src blob:">',
+      "utf8",
+    );
+
+    const result = await runNode("scripts/verify-csp.mjs", [artifactPath]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("CSP_DUPLICATE_ATTRIBUTE");
+  });
+
+  it("fails closed when a CSP meta tag contains malformed or unparsed attributes", async () => {
+    const directory = await createTemporaryDirectory();
+    const artifactPath = join(directory, "malformed-csp-meta.html");
+    await writeFile(
+      artifactPath,
+      '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'" broken=>',
+      "utf8",
+    );
+
+    const result = await runNode("scripts/verify-csp.mjs", [artifactPath]);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("CSP_META_ATTRIBUTE_SYNTAX_INVALID");
   });
 });
 

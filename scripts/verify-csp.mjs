@@ -57,7 +57,15 @@ function findPolicies(html) {
     const parsedAttributes = parseAttributes(tagMatch[0]);
     const attributes = parsedAttributes.attributes;
     issues.push(...parsedAttributes.issues);
-    if (attributes.get("http-equiv")?.toLowerCase() === "content-security-policy") {
+    const httpEquiv = attributes.get("http-equiv")?.toLowerCase();
+    const looksLikeCsp = /content-security-policy/i.test(tagMatch[0]);
+    if (looksLikeCsp && httpEquiv !== "content-security-policy") {
+      issues.push({
+        code: "CSP_META_ATTRIBUTE_SYNTAX_INVALID",
+        detail: "could not parse CSP http-equiv attribute",
+      });
+    }
+    if (httpEquiv === "content-security-policy") {
       const content = attributes.get("content");
       if (content !== undefined) policies.push(content);
     }
@@ -68,18 +76,107 @@ function findPolicies(html) {
 function parseAttributes(tag) {
   const attributes = new Map();
   const issues = [];
-  for (const match of tag.matchAll(/([a-z][a-z0-9:-]*)\s*=\s*(["'])([\s\S]*?)\2/gi)) {
-    const name = match[1];
-    const value = match[3];
-    if (name === undefined || value === undefined) continue;
-    const normalizedName = name.toLowerCase();
-    if (attributes.has(normalizedName)) {
-      issues.push({ code: "CSP_DUPLICATE_ATTRIBUTE", detail: normalizedName });
+  let index = /^<meta\b/i.exec(tag)?.[0].length ?? 0;
+  while (index < tag.length) {
+    while (/\s/.test(tag[index] ?? "")) index += 1;
+    if (tag[index] === ">" || (tag[index] === "/" && tag[index + 1] === ">")) break;
+
+    const nameStart = index;
+    while (index < tag.length && !/[\s=/>]/.test(tag[index] ?? "")) index += 1;
+    const rawName = tag.slice(nameStart, index);
+    if (!/^[a-z][a-z0-9:-]*$/i.test(rawName)) {
+      issues.push({
+        code: "CSP_META_ATTRIBUTE_SYNTAX_INVALID",
+        detail: `invalid attribute near offset ${nameStart}`,
+      });
+      index = Math.max(index + 1, nameStart + 1);
       continue;
     }
-    attributes.set(normalizedName, value);
+
+    const normalizedName = rawName.toLowerCase();
+    while (/\s/.test(tag[index] ?? "")) index += 1;
+    if (tag[index] !== "=") {
+      issues.push({
+        code: "CSP_META_ATTRIBUTE_SYNTAX_INVALID",
+        detail: `${normalizedName} has no value`,
+      });
+      recordAttribute(attributes, issues, normalizedName, "");
+      continue;
+    }
+
+    index += 1;
+    while (/\s/.test(tag[index] ?? "")) index += 1;
+    const quote = tag[index];
+    let value = "";
+    if (quote === '"' || quote === "'") {
+      index += 1;
+      const valueStart = index;
+      while (index < tag.length && tag[index] !== quote) index += 1;
+      if (index >= tag.length) {
+        issues.push({
+          code: "CSP_META_ATTRIBUTE_SYNTAX_INVALID",
+          detail: `${normalizedName} has an unterminated quoted value`,
+        });
+        value = tag.slice(valueStart);
+      } else {
+        value = tag.slice(valueStart, index);
+        index += 1;
+      }
+    } else {
+      const valueStart = index;
+      while (index < tag.length && !/[\s>]/.test(tag[index] ?? "")) index += 1;
+      value = tag.slice(valueStart, index);
+      if (value.length === 0 || /["'<=`]/.test(value)) {
+        issues.push({
+          code: "CSP_META_ATTRIBUTE_SYNTAX_INVALID",
+          detail: `${normalizedName} has an invalid unquoted value`,
+        });
+      }
+    }
+    recordAttribute(
+      attributes,
+      issues,
+      normalizedName,
+      decodeHtmlAttributeValue(value),
+    );
   }
   return { attributes, issues };
+}
+
+function recordAttribute(attributes, issues, name, value) {
+  if (attributes.has(name)) {
+    issues.push({ code: "CSP_DUPLICATE_ATTRIBUTE", detail: name });
+    return;
+  }
+  attributes.set(name, value);
+}
+
+function decodeHtmlAttributeValue(value) {
+  return value.replace(
+    /&(?:#(\d+)|#x([\da-f]+)|quot|apos|amp|lt|gt);/gi,
+    (entity, decimal, hexadecimal) => {
+      if (decimal !== undefined) return decodeCodePoint(Number.parseInt(decimal, 10), entity);
+      if (hexadecimal !== undefined) {
+        return decodeCodePoint(Number.parseInt(hexadecimal, 16), entity);
+      }
+      const named = {
+        "&amp;": "&",
+        "&apos;": "'",
+        "&gt;": ">",
+        "&lt;": "<",
+        "&quot;": '"',
+      };
+      return named[entity.toLowerCase()] ?? entity;
+    },
+  );
+}
+
+function decodeCodePoint(codePoint, fallback) {
+  try {
+    return String.fromCodePoint(codePoint);
+  } catch {
+    return fallback;
+  }
 }
 
 function parsePolicy(policy) {
