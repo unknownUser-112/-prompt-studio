@@ -197,17 +197,28 @@ function canonicalCycle(cycle) {
 }
 
 function findBootstrapViolations(metafile, bootstrapOnly) {
-  if (!bootstrapOnly || !isRecord(metafile.outputs)) return [];
+  if (!bootstrapOnly) return [];
+  if (!isRecord(metafile.outputs)) {
+    return [{ code: "MODULE_BOOTSTRAP_ENTRYPOINT_COUNT_INVALID", detail: "found 0" }];
+  }
   const entryPoints = Object.values(metafile.outputs)
     .filter(isRecord)
     .map((output) => output.entryPoint)
     .filter((entryPoint) => typeof entryPoint === "string")
     .map(normalizeGraphPath);
-  const invalid = entryPoints.filter((entryPoint) => !entryPoint.startsWith("src/bootstrap/"));
-  return invalid.map((entryPoint) => ({
-    code: "MODULE_COMPOSITION_ROOT_INVALID",
-    detail: entryPoint,
-  }));
+  if (entryPoints.length !== 1) {
+    return [{
+      code: "MODULE_BOOTSTRAP_ENTRYPOINT_COUNT_INVALID",
+      detail: `found ${entryPoints.length}`,
+    }];
+  }
+  if (entryPoints[0] !== "src/bootstrap/index.ts") {
+    return [{
+      code: "MODULE_BOOTSTRAP_ENTRYPOINT_INVALID",
+      detail: entryPoints[0],
+    }];
+  }
+  return [];
 }
 
 function normalizeGraphPath(filePath) {

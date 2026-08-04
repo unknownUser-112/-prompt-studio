@@ -1,8 +1,27 @@
 import { readFile, readdir } from "node:fs/promises";
-import { basename, dirname, extname, isAbsolute, join, normalize, resolve } from "node:path";
+import {
+  basename,
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  normalize,
+  relative,
+  resolve,
+} from "node:path";
+import {
+  createScanner,
+  LanguageVariant,
+  ModifierFlags,
+  SyntaxKind,
+} from "typescript/unstable/ast";
+import { API as TypeScriptApi } from "typescript/unstable/sync";
 
 const V600_APP_VERSION = "V600.0.0-Phase1-Foundation";
+const V600_DATABASE_SCHEMA_VERSION = 1;
+const V600_PLUGIN_API_VERSION = 1;
 const V600_ARTIFACT = "dist/Prompt-Studio-V600.0.0-Phase1-Foundation.html";
+const V600_IPHONE_EVIDENCE = "docs/reports/phase1-iphone-viewer.md";
 const BASELINE_ARTIFACT =
   "reference/v500.6.11/Prompt-Studio-V500.6.11-Binding-Selfie-Open-Garment-State.html";
 const BASELINE_REPORT = "reference/v500.6.11/Prompt-Studio-V500.6.11-Test-Results.json";
@@ -12,12 +31,12 @@ const BASELINE_CODES = [
   "REFERENCE_DUPLICATE_RENDERED_IDS",
   "REFERENCE_REAL_MOBILE_COVERAGE_MISSING",
 ];
+const BASELINE_DUPLICATE_IDS = ["copy", "prompt"];
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx"]);
 const OPEN_MARKER_PATTERN = /\b(?:FIXME|HACK|TODO|XXX)\b/g;
 
-const options = parseArguments(process.argv.slice(2));
-
 try {
+  const options = parseArguments(process.argv.slice(2));
   if (options.baseline) {
     await verifyBaseline();
   } else {
@@ -35,6 +54,13 @@ async function verifyBaseline() {
     readJson(BASELINE_REPORT),
   ]);
   const detected = new Map();
+  const duplicateIds = findDuplicateIds(artifact);
+
+  if (JSON.stringify(duplicateIds) !== JSON.stringify(BASELINE_DUPLICATE_IDS)) {
+    throw new Error(
+      `REFERENCE_DEBT_ID_SET_MISMATCH expected=[${BASELINE_DUPLICATE_IDS.join(",")}] actual=[${duplicateIds.join(",")}]`,
+    );
+  }
 
   if (/Prompt Studio V500\.6\.10\b/.test(artifact)) {
     detected.set(
@@ -53,7 +79,7 @@ async function verifyBaseline() {
   }
   if (
     reportCheckIsFalse(report, "noDuplicateStaticIds") &&
-    findDuplicateIds(artifact).length > 0
+    duplicateIds.length > 0
   ) {
     detected.set(
       "REFERENCE_DUPLICATE_RENDERED_IDS",
@@ -84,28 +110,44 @@ async function verifyBaseline() {
 async function verifyV600(configuration) {
   const artifactPath = configuration.artifact ?? V600_ARTIFACT;
   const sourceRoot = configuration.sourceRoot ?? "src";
+  const evidencePath = configuration.report ??
+    (configuration.release ? V600_IPHONE_EVIDENCE : undefined);
   const artifact = await readFile(resolvePath(artifactPath), "utf8");
   const issues = [];
   const metadata = readBuildMetadata(artifact);
 
-  if (
-    metadata === null ||
-    metadata.appVersion !== V600_APP_VERSION ||
-    /Prompt Studio V500\.6\.10\b/.test(artifact)
-  ) {
+  if (metadata === null || metadata.appVersion !== V600_APP_VERSION) {
     issues.push({
       code: "V600_VERSION_METADATA_STALE",
       detail: `expected build metadata appVersion ${V600_APP_VERSION}`,
     });
   }
-
-  const staleExportNames = findExportFilenames(artifact).filter((fileName) =>
-    /v500(?:[.-]|$)|v500-/i.test(fileName),
-  );
-  if (staleExportNames.length > 0) {
+  if (metadata === null || metadata.databaseSchemaVersion !== V600_DATABASE_SCHEMA_VERSION) {
     issues.push({
-      code: "V600_EXPORT_FILENAME_STALE",
-      detail: staleExportNames.join(", "),
+      code: "V600_DATABASE_SCHEMA_VERSION_INVALID",
+      detail: `expected build metadata databaseSchemaVersion ${V600_DATABASE_SCHEMA_VERSION}`,
+    });
+  }
+  if (metadata === null || metadata.pluginApiVersion !== V600_PLUGIN_API_VERSION) {
+    issues.push({
+      code: "V600_PLUGIN_API_VERSION_INVALID",
+      detail: `expected build metadata pluginApiVersion ${V600_PLUGIN_API_VERSION}`,
+    });
+  }
+  if (/\bV500(?:\.\d+)+(?:[-\w]*)?/i.test(readVisibleText(artifact))) {
+    issues.push({
+      code: "V600_VERSION_METADATA_STALE",
+      detail: "visible V500 version text is forbidden",
+    });
+  }
+
+  const invalidExportNames = findExportFilenames(artifact).filter(
+    (fileName) => !/^prompt-studio-v600(?:-[a-z0-9]+)*\.json$/.test(fileName),
+  );
+  if (invalidExportNames.length > 0) {
+    issues.push({
+      code: "V600_EXPORT_FILENAME_INVALID",
+      detail: invalidExportNames.join(", "),
     });
   }
 
@@ -124,14 +166,23 @@ async function verifyV600(configuration) {
     });
   }
 
-  const report = configuration.report === undefined
-    ? null
-    : await readJson(configuration.report);
-  if (report === null || !hasRealMobileCoverage(report)) {
+  if (evidencePath === undefined) {
     issues.push({
-      code: "V600_REAL_MOBILE_COVERAGE_MISSING",
-      detail: "a positive real iPhone HTML Viewer execution result is required",
+      code: "V600_IPHONE_EVIDENCE_INVALID",
+      detail: "iPhone evidence path is required",
     });
+  } else {
+    try {
+      const evidence = await readFile(resolvePath(evidencePath), "utf8");
+      for (const detail of validateIphoneEvidence(evidence)) {
+        issues.push({ code: "V600_IPHONE_EVIDENCE_INVALID", detail });
+      }
+    } catch {
+      issues.push({
+        code: "V600_IPHONE_EVIDENCE_INVALID",
+        detail: `cannot read ${evidencePath}`,
+      });
+    }
   }
 
   const sourceFiles = await listSourceFiles(resolvePath(sourceRoot));
@@ -158,13 +209,17 @@ async function verifyV600(configuration) {
     return;
   }
 
-  process.stdout.write(`SOURCE_INTEGRITY_OK ${displayPath(resolvePath(artifactPath))}\n`);
+  const successCode = configuration.release
+    ? "SOURCE_INTEGRITY_RELEASE_OK"
+    : "SOURCE_INTEGRITY_OK";
+  process.stdout.write(`${successCode} ${displayPath(resolvePath(artifactPath))}\n`);
 }
 
 function parseArguments(arguments_) {
   const configuration = {
     artifact: undefined,
     baseline: false,
+    release: false,
     report: undefined,
     sourceRoot: undefined,
   };
@@ -173,6 +228,10 @@ function parseArguments(arguments_) {
     const argument = arguments_[index];
     if (argument === "--baseline") {
       configuration.baseline = true;
+      continue;
+    }
+    if (argument === "--release") {
+      configuration.release = true;
       continue;
     }
     if (argument === "--artifact" || argument === "--report" || argument === "--source-root") {
@@ -189,12 +248,14 @@ function parseArguments(arguments_) {
     throw new Error(`SOURCE_INTEGRITY_USAGE_INVALID unknown argument ${argument}`);
   }
 
-  if (
-    configuration.baseline &&
-    (configuration.artifact !== undefined ||
-      configuration.report !== undefined ||
-      configuration.sourceRoot !== undefined)
-  ) {
+  const hasPathOverride =
+    configuration.artifact !== undefined ||
+    configuration.report !== undefined ||
+    configuration.sourceRoot !== undefined;
+  if (configuration.release && (configuration.baseline || hasPathOverride)) {
+    throw new Error("SOURCE_INTEGRITY_USAGE_INVALID --release is exclusive");
+  }
+  if (configuration.baseline && hasPathOverride) {
     throw new Error("SOURCE_INTEGRITY_USAGE_INVALID --baseline cannot be combined with paths");
   }
 
@@ -216,20 +277,146 @@ function readBuildMetadata(artifact) {
 }
 
 function findExportFilenames(artifact) {
-  return [
-    ...artifact.matchAll(
-      /(?:\bdownload|\bfileName|\bfilename)\s*(?:=|:)\s*["']([^"']+)["']/gi,
-    ),
-  ]
-    .map((match) => match[1])
-    .filter((value) => value !== undefined);
+  const fileNames = [];
+  for (const scriptMatch of artifact.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
+    const script = scriptMatch[1];
+    if (script === undefined) continue;
+    const scanner = createScanner(true, LanguageVariant.Standard, script);
+    const tokens = [];
+    for (let kind = scanner.scan(); kind !== SyntaxKind.EndOfFile; kind = scanner.scan()) {
+      tokens.push({ kind, value: scanner.getTokenValue() });
+    }
+    for (let index = 0; index < tokens.length - 2; index += 1) {
+      const property = tokens[index];
+      const separator = tokens[index + 1];
+      const value = tokens[index + 2];
+      const propertyName =
+        property.kind === SyntaxKind.Identifier || property.kind === SyntaxKind.StringLiteral
+          ? property.value.toLowerCase()
+          : null;
+      const isFileNameProperty =
+        propertyName === "download" ||
+        propertyName === "filename";
+      const isAssignment =
+        separator.kind === SyntaxKind.EqualsToken || separator.kind === SyntaxKind.ColonToken;
+      const isStaticString =
+        value.kind === SyntaxKind.StringLiteral ||
+        value.kind === SyntaxKind.NoSubstitutionTemplateLiteral;
+      if (
+        isFileNameProperty &&
+        isAssignment &&
+        isStaticString &&
+        value.value.toLowerCase().endsWith(".json")
+      ) {
+        fileNames.push(value.value);
+      }
+    }
+  }
+  return fileNames;
+}
+
+function readVisibleText(artifact) {
+  return artifact
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
+}
+
+function validateIphoneEvidence(evidence) {
+  const issues = [];
+  const requiredHeadings = [
+    "# Phase 1 iPhone Viewer Verification",
+    "## Environment Results",
+    "## Interaction Results",
+    "## Screenshot Evidence",
+  ];
+  for (const heading of requiredHeadings) {
+    if (countExactLines(evidence, heading) !== 1) issues.push(`missing unique heading: ${heading}`);
+  }
+
+  const status = readUniqueField(evidence, "Status", issues);
+  const deviceModel = readUniqueField(evidence, "Device Model", issues);
+  const iosVersion = readUniqueField(evidence, "iOS Version", issues);
+  const viewerName = readUniqueField(evidence, "HTML Viewer Name", issues);
+  const viewerVersion = readUniqueField(evidence, "HTML Viewer Version", issues);
+
+  if (status !== null && status !== "PASS") issues.push("Status must equal PASS");
+  if (
+    deviceModel !== null &&
+    !/^iPhone (?!Simulator\b|Unknown\b|Test\b|N\/A\b)[A-Za-z0-9][A-Za-z0-9 .+()/-]{1,60}$/i
+      .test(deviceModel)
+  ) {
+    issues.push("Device Model must identify a physical iPhone model");
+  }
+  if (iosVersion !== null && !/^\d{1,2}(?:\.\d{1,2}){1,2}$/.test(iosVersion)) {
+    issues.push("iOS Version must be a dotted numeric version");
+  }
+  if (
+    viewerName !== null &&
+    !/^(?!Unknown$|Test$|Viewer$|HTML Viewer$)[A-Za-z0-9][A-Za-z0-9 .+()/-]{2,80}$/i
+      .test(viewerName)
+  ) {
+    issues.push("HTML Viewer Name must name the installed viewer");
+  }
+  if (viewerVersion !== null && !/^\d+(?:\.[0-9A-Za-z-]+)+$/.test(viewerVersion)) {
+    issues.push("HTML Viewer Version must be a dotted version");
+  }
+
+  const passChecks = [
+    "Safari",
+    "HTML Viewer",
+    "App Start",
+    "Wizard Steps 1-10",
+    "New Project Dialog",
+    "Profiles",
+    "Prompt Output",
+    "Import",
+    "Export",
+    "Focus After Dialog Close",
+  ];
+  for (const check of passChecks) {
+    if (countExactLines(evidence, `- ${check}: PASS`) !== 1) {
+      issues.push(`${check} must have exactly one PASS result`);
+    }
+  }
+
+  for (const label of ["Safari", "HTML Viewer"]) {
+    const escapedLabel = escapeRegExp(label);
+    const pattern = new RegExp(
+      `^- ${escapedLabel}: !\\[[^\\]\\n]+\\]\\((?!https?:|data:)[^)\\n]+\\.(?:png|jpe?g|webp)\\)$`,
+      "gim",
+    );
+    if ([...evidence.matchAll(pattern)].length !== 1) {
+      issues.push(`${label} screenshot must be one local Markdown image`);
+    }
+  }
+  return issues;
+}
+
+function readUniqueField(evidence, label, issues) {
+  const pattern = new RegExp(`^${escapeRegExp(label)}: (.+)$`, "gm");
+  const matches = [...evidence.matchAll(pattern)];
+  if (matches.length !== 1 || matches[0]?.[1] === undefined) {
+    issues.push(`${label} must occur exactly once`);
+    return null;
+  }
+  return matches[0][1].trim();
+}
+
+function countExactLines(evidence, line) {
+  return [...evidence.matchAll(new RegExp(`^${escapeRegExp(line)}$`, "gm"))].length;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function findDuplicateIds(artifact) {
   const counts = new Map();
   for (const match of artifact.matchAll(/\bid\s*=\s*["']([^"']+)["']/gi)) {
     const id = match[1];
-    if (id !== undefined) counts.set(id, (counts.get(id) ?? 0) + 1);
+    if (id !== undefined && !id.includes("${")) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
   }
   return [...counts.entries()]
     .filter(([, count]) => count > 1)
@@ -277,14 +464,23 @@ async function listSourceFiles(root) {
 }
 
 async function findUnusedExports(sourceFiles) {
+  if (sourceFiles.length === 0) return [];
   const modules = new Map();
-
-  for (const sourceFile of sourceFiles) {
-    const source = await readFile(sourceFile, "utf8");
-    modules.set(normalize(sourceFile), {
-      exports: collectExports(source),
-      imports: collectImports(source, sourceFile, sourceFiles),
-    });
+  const api = new TypeScriptApi({ cwd: dirname(sourceFiles[0]) });
+  let snapshot;
+  try {
+    snapshot = api.updateSnapshot({ openFiles: sourceFiles });
+    for (const sourceFilePath of sourceFiles) {
+      const project = snapshot.getDefaultProjectForFile(sourceFilePath);
+      const sourceFile = project?.program.getSourceFile(sourceFilePath);
+      if (sourceFile === undefined) {
+        throw new Error(`SOURCE_INTEGRITY_TYPESCRIPT_AST_MISSING ${sourceFilePath}`);
+      }
+      modules.set(normalize(sourceFilePath), analyzeSourceFile(sourceFile, sourceFiles));
+    }
+  } finally {
+    snapshot?.dispose();
+    api.close();
   }
 
   const used = new Map();
@@ -308,90 +504,153 @@ async function findUnusedExports(sourceFiles) {
   return unused.sort();
 }
 
-function collectExports(source) {
+function analyzeSourceFile(sourceFile, sourceFiles) {
   const exported = new Set();
-  for (const match of source.matchAll(
-    /^\s*export\s+(?:declare\s+)?(?:async\s+)?(?:function|class|const|let|var|interface|type|enum)\s+([A-Za-z_$][\w$]*)/gm,
-  )) {
-    if (match[1] !== undefined) exported.add(match[1]);
-  }
-  if (/^\s*export\s+default\b/gm.test(source)) exported.add("default");
-  for (const match of source.matchAll(/^\s*export\s*\{([^}]+)\}/gm)) {
-    const clause = match[1];
-    if (clause === undefined) continue;
-    for (const specifier of clause.split(",")) {
-      const normalizedSpecifier = specifier.trim().replace(/^type\s+/, "");
-      if (normalizedSpecifier.length === 0) continue;
-      const parts = normalizedSpecifier.split(/\s+as\s+/i);
-      const exportedName = parts.at(-1)?.trim();
-      if (exportedName !== undefined && /^[A-Za-z_$][\w$]*$/.test(exportedName)) {
-        exported.add(exportedName);
-      }
-    }
-  }
-  return exported;
-}
-
-function collectImports(source, sourceFilePath, sourceFiles) {
   const imports = [];
-  for (const match of source.matchAll(
-    /^\s*import\s+(?:type\s+)?([\s\S]*?)\s+from\s+["']([^"']+)["']/gm,
-  )) {
-    const clause = match[1];
-    const moduleSpecifier = match[2];
-    if (clause === undefined || moduleSpecifier === undefined) continue;
-    const target = resolveModule(sourceFilePath, moduleSpecifier, sourceFiles);
-    if (target === null) continue;
-    imports.push({ target, names: importedNames(clause) });
+  for (const statement of sourceFile.statements) {
+    if (statement.kind === SyntaxKind.ImportDeclaration) {
+      collectImportDeclaration(statement, sourceFile.fileName, sourceFiles, imports);
+      continue;
+    }
+    if (statement.kind === SyntaxKind.ExportDeclaration) {
+      collectExportDeclaration(
+        statement,
+        sourceFile.fileName,
+        sourceFiles,
+        imports,
+        exported,
+      );
+      continue;
+    }
+    if (statement.kind === SyntaxKind.ExportAssignment) {
+      exported.add("default");
+      continue;
+    }
+    if ((statement.modifierFlags & ModifierFlags.Export) === 0) continue;
+    if ((statement.modifierFlags & ModifierFlags.Default) !== 0) {
+      exported.add("default");
+      continue;
+    }
+    if (statement.kind === SyntaxKind.VariableStatement) {
+      for (const declaration of statement.declarationList.declarations) {
+        collectBindingNames(declaration.name, exported);
+      }
+      continue;
+    }
+    const name = readNodeName(statement.name);
+    if (name !== null) exported.add(name);
   }
-  for (const match of source.matchAll(
-    /^\s*export\s+(\*|\{[^}]+\})\s+from\s+["']([^"']+)["']/gm,
-  )) {
-    const clause = match[1];
-    const moduleSpecifier = match[2];
-    if (clause === undefined || moduleSpecifier === undefined) continue;
-    const target = resolveModule(sourceFilePath, moduleSpecifier, sourceFiles);
-    if (target === null) continue;
-    imports.push({ target, names: clause === "*" ? new Set(["*"]) : importedNames(clause) });
-  }
-  for (const match of source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)) {
-    const moduleSpecifier = match[1];
-    if (moduleSpecifier === undefined) continue;
-    const target = resolveModule(sourceFilePath, moduleSpecifier, sourceFiles);
+
+  visitAst(sourceFile, (node) => {
+    if (
+      node.kind !== SyntaxKind.CallExpression ||
+      node.expression?.kind !== SyntaxKind.ImportKeyword
+    ) {
+      return;
+    }
+    const moduleSpecifier = readStringLiteral(node.arguments?.[0]);
+    if (moduleSpecifier === null) return;
+    const target = resolveModule(sourceFile.fileName, moduleSpecifier, sourceFiles);
     if (target !== null) imports.push({ target, names: new Set(["*"]) });
-  }
-  return imports;
+  });
+
+  return { exports: exported, imports };
 }
 
-function importedNames(clause) {
+function collectImportDeclaration(statement, sourceFilePath, sourceFiles, imports) {
+  const moduleSpecifier = readStringLiteral(statement.moduleSpecifier);
+  if (moduleSpecifier === null) return;
+  const target = resolveModule(sourceFilePath, moduleSpecifier, sourceFiles);
+  if (target === null) return;
   const names = new Set();
-  const trimmed = clause.trim();
-  if (/^\*\s+as\s+/.test(trimmed)) names.add("*");
-  const namedMatch = trimmed.match(/\{([^}]+)\}/);
-  if (namedMatch?.[1] !== undefined) {
-    for (const specifier of namedMatch[1].split(",")) {
-      const normalizedSpecifier = specifier.trim().replace(/^type\s+/, "");
-      const importedName = normalizedSpecifier.split(/\s+as\s+/i)[0]?.trim();
-      if (importedName !== undefined && /^[A-Za-z_$][\w$]*$/.test(importedName)) {
-        names.add(importedName);
-      }
+  const clause = statement.importClause;
+  if (clause?.name !== undefined) names.add("default");
+  const bindings = clause?.namedBindings;
+  if (bindings?.kind === SyntaxKind.NamespaceImport) names.add("*");
+  if (bindings?.kind === SyntaxKind.NamedImports) {
+    for (const element of bindings.elements) {
+      const name = readNodeName(element.propertyName ?? element.name);
+      if (name !== null) names.add(name);
     }
   }
-  const defaultCandidate = trimmed.split(",", 1)[0]?.trim();
-  if (
-    defaultCandidate !== undefined &&
-    /^[A-Za-z_$][\w$]*$/.test(defaultCandidate) &&
-    !defaultCandidate.startsWith("{")
-  ) {
-    names.add("default");
+  imports.push({ target, names });
+}
+
+function collectExportDeclaration(
+  statement,
+  sourceFilePath,
+  sourceFiles,
+  imports,
+  exported,
+) {
+  const clause = statement.exportClause;
+  if (clause?.kind === SyntaxKind.NamespaceExport) {
+    const name = readNodeName(clause.name);
+    if (name !== null) exported.add(name);
   }
-  return names;
+  if (clause?.kind === SyntaxKind.NamedExports) {
+    for (const element of clause.elements) {
+      const name = readNodeName(element.name);
+      if (name !== null) exported.add(name);
+    }
+  }
+
+  const moduleSpecifier = readStringLiteral(statement.moduleSpecifier);
+  if (moduleSpecifier === null) return;
+  const target = resolveModule(sourceFilePath, moduleSpecifier, sourceFiles);
+  if (target === null) return;
+  if (clause === undefined || clause.kind === SyntaxKind.NamespaceExport) {
+    imports.push({ target, names: new Set(["*"]) });
+    return;
+  }
+  const names = new Set();
+  if (clause.kind === SyntaxKind.NamedExports) {
+    for (const element of clause.elements) {
+      const name = readNodeName(element.propertyName ?? element.name);
+      if (name !== null) names.add(name);
+    }
+  }
+  imports.push({ target, names });
+}
+
+function collectBindingNames(name, target) {
+  const identifier = readNodeName(name);
+  if (identifier !== null) {
+    target.add(identifier);
+    return;
+  }
+  for (const element of name?.elements ?? []) {
+    if (element.name !== undefined) collectBindingNames(element.name, target);
+  }
+}
+
+function visitAst(node, visitor) {
+  visitor(node);
+  node.forEachChild((child) => visitAst(child, visitor));
+}
+
+function readStringLiteral(node) {
+  return node?.kind === SyntaxKind.StringLiteral && typeof node.text === "string"
+    ? node.text
+    : null;
+}
+
+function readNodeName(node) {
+  return node?.kind === SyntaxKind.Identifier && typeof node.text === "string"
+    ? node.text
+    : null;
 }
 
 function resolveModule(sourceFilePath, moduleSpecifier, sourceFiles) {
   if (!moduleSpecifier.startsWith(".")) return null;
   const base = resolve(dirname(sourceFilePath), moduleSpecifier);
-  const candidates = [base, `${base}.ts`, `${base}.tsx`, join(base, "index.ts"), join(base, "index.tsx")];
+  const candidates = [
+    base,
+    `${base}.ts`,
+    `${base}.tsx`,
+    join(base, "index.ts"),
+    join(base, "index.tsx"),
+  ];
   const sourceSet = new Set(sourceFiles.map((file) => normalize(file)));
   return candidates.map(normalize).find((candidate) => sourceSet.has(candidate)) ?? null;
 }
@@ -406,8 +665,8 @@ function resolvePath(filePath) {
 
 function displayPath(filePath) {
   const absolute = resolvePath(filePath);
-  const relative = normalize(absolute).slice(`${normalize(resolve())}/`.length);
-  return relative.startsWith("..") ? absolute : relative;
+  const projectRelativePath = relative(resolve(), absolute);
+  return projectRelativePath.startsWith("..") ? absolute : projectRelativePath;
 }
 
 function isRecord(value) {

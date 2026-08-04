@@ -18,8 +18,9 @@ const NON_NETWORK_SOURCES = new Set(["'none'", "'unsafe-inline'", "data:", "blob
 try {
   const artifactPath = readArtifactPath(process.argv.slice(2));
   const artifact = await readFile(resolvePath(artifactPath), "utf8");
-  const policies = findPolicies(artifact);
-  const issues = [];
+  const parsedMeta = findPolicies(artifact);
+  const policies = parsedMeta.policies;
+  const issues = [...parsedMeta.issues];
 
   if (policies.length !== 1) {
     issues.push({ code: "CSP_POLICY_COUNT_INVALID", detail: `found ${policies.length}` });
@@ -51,24 +52,34 @@ function readArtifactPath(arguments_) {
 
 function findPolicies(html) {
   const policies = [];
+  const issues = [];
   for (const tagMatch of html.matchAll(/<meta\b[^>]*>/gi)) {
-    const attributes = parseAttributes(tagMatch[0]);
+    const parsedAttributes = parseAttributes(tagMatch[0]);
+    const attributes = parsedAttributes.attributes;
+    issues.push(...parsedAttributes.issues);
     if (attributes.get("http-equiv")?.toLowerCase() === "content-security-policy") {
       const content = attributes.get("content");
       if (content !== undefined) policies.push(content);
     }
   }
-  return policies;
+  return { policies, issues };
 }
 
 function parseAttributes(tag) {
   const attributes = new Map();
+  const issues = [];
   for (const match of tag.matchAll(/([a-z][a-z0-9:-]*)\s*=\s*(["'])([\s\S]*?)\2/gi)) {
     const name = match[1];
     const value = match[3];
-    if (name !== undefined && value !== undefined) attributes.set(name.toLowerCase(), value);
+    if (name === undefined || value === undefined) continue;
+    const normalizedName = name.toLowerCase();
+    if (attributes.has(normalizedName)) {
+      issues.push({ code: "CSP_DUPLICATE_ATTRIBUTE", detail: normalizedName });
+      continue;
+    }
+    attributes.set(normalizedName, value);
   }
-  return attributes;
+  return { attributes, issues };
 }
 
 function parsePolicy(policy) {
