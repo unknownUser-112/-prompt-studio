@@ -1,0 +1,137 @@
+{
+  "version": "V500.6.11-Binding-Selfie-Open-Garment-State",
+  "file": "Prompt-Studio-V500.6.11-Binding-Selfie-Open-Garment-State.html",
+  "fileSizeBytes": 779221,
+  "sha256": "d1c2a292d203c8f76116b8b0a330bf677be394f86e044706cc3675a7326ac5c7",
+  "javascriptSyntax": true,
+  "integratedSelfTests": {
+    "passed": 941,
+    "total": 941,
+    "errors": 0,
+    "warnings": 0,
+    "failed": []
+  },
+  "targetedVmRegression": {
+    "rows": [
+      {
+        "id": "universal",
+        "len": 7877,
+        "released": true,
+        "selfie": true,
+        "garment": true,
+        "conflict": false
+      },
+      {
+        "id": "geminiNatural",
+        "len": 7763,
+        "released": true,
+        "selfie": true,
+        "garment": true,
+        "conflict": false
+      },
+      {
+        "id": "geminiPro",
+        "len": 8328,
+        "released": true,
+        "selfie": true,
+        "garment": true,
+        "conflict": false
+      },
+      {
+        "id": "standardJson",
+        "len": 12047,
+        "released": true,
+        "selfie": false,
+        "garment": false,
+        "conflict": false
+      },
+      {
+        "id": "safeJson",
+        "len": 8204,
+        "released": true,
+        "selfie": false,
+        "garment": false,
+        "conflict": false
+      }
+    ],
+    "tests": [
+      {
+        "id": "v5611.gemini-natural.selfie-binding",
+        "ok": true
+      },
+      {
+        "id": "v5611.gemini-pro.selfie-binding",
+        "ok": true
+      },
+      {
+        "id": "v5611.universal.selfie-binding",
+        "ok": true
+      },
+      {
+        "id": "v5611.selfie.no-main-camera-conflict",
+        "ok": true
+      },
+      {
+        "id": "v5611.selfie.disabled-clean",
+        "ok": true
+      },
+      {
+        "id": "v5611.open-garment.gemini-natural",
+        "ok": true
+      },
+      {
+        "id": "v5611.open-garment.gemini-pro",
+        "ok": true
+      },
+      {
+        "id": "v5611.closed-garment.no-state-block",
+        "ok": true
+      },
+      {
+        "id": "v5611.json.compact-unchanged",
+        "ok": true
+      },
+      {
+        "id": "v5611.gate.binding-required",
+        "ok": true
+      },
+      {
+        "id": "v5611.removed-terms-still-clean",
+        "ok": true
+      }
+    ]
+  },
+  "staticIntegrity": {
+    "passed": 7,
+    "total": 9,
+    "checks": {
+      "htmlDoctype": true,
+      "singleAppRoot": true,
+      "appVersion": true,
+      "titleVersion": true,
+      "exportFilename": false,
+      "selfieBindingSource": true,
+      "garmentBindingSource": true,
+      "removedTermsNotInEmittedDirective": true,
+      "noDuplicateStaticIds": false
+    }
+  },
+  "implementation": {
+    "bindingSelfieProfiles": [
+      "Universal",
+      "Gemini Natural",
+      "Gemini Pro"
+    ],
+    "bindingOpenGarmentProfiles": [
+      "Universal",
+      "Gemini Natural",
+      "Gemini Pro"
+    ],
+    "jsonProfilesUnchangedByV5611": true,
+    "selfieMainCameraContradictionRemoved": true,
+    "selfieDisabledProducesNoBinding": true,
+    "closedGarmentProducesNoOpenStateBinding": true,
+    "qualityGateRequiresBindingWhenApplicable": true
+  },
+  "browserEnvironmentNote": "The complete logic was executed in a Node VM with DOM stubs. JavaScript syntax and 941 integrated tests passed. A real iPhone HTML Viewer interaction was not executed in this environment."
+}

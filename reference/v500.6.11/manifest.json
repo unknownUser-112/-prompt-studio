@@ -1,0 +1,33 @@
+{
+  "role": "authoritative",
+  "expectedReferenceTestCounts": {
+    "integratedSelfTests": {
+      "passed": 941,
+      "total": 941,
+      "errors": 0,
+      "warnings": 0
+    },
+    "targetedVmRegressions": {
+      "passed": 11,
+      "total": 11
+    }
+  },
+  "artifacts": [
+    {
+      "sourcePath": "Prompt-Studio-V500.6.11-Binding-Selfie-Open-Garment-State.html",
+      "referencePath": "reference/v500.6.11/Prompt-Studio-V500.6.11-Binding-Selfie-Open-Garment-State.html",
+      "bytes": 779221,
+      "lines": 6554,
+      "sha256": "d1c2a292d203c8f76116b8b0a330bf677be394f86e044706cc3675a7326ac5c7",
+      "role": "authoritative"
+    },
+    {
+      "sourcePath": "Prompt-Studio-V500.6.11-Test-Results.json",
+      "referencePath": "reference/v500.6.11/Prompt-Studio-V500.6.11-Test-Results.json",
+      "bytes": 3319,
+      "lines": 136,
+      "sha256": "67e71ecb3f401c5d892b4cd21fa1a0f31ab4c858bb35642866e077f244167a63",
+      "role": "authoritative"
+    }
+  ]
+}
