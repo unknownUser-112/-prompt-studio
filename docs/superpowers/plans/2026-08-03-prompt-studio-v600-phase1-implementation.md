@@ -12,8 +12,8 @@ Status: **Entwurf – ausdrückliche Freigabe ausstehend**
 
 ## Global Constraints
 
-- Autoritative Spezifikation: `docs/superpowers/specs/2026-08-03-prompt-studio-v600-phase1-design.md`, Freigabecommit `29e86a342e6fe9c00a941f02d141716e3c607d9f`, Inhaltsbasis `a9e61232ec11e6f4c57b49f89fa23dbd68a12526a3111e28b39ff4aee44dd140`, aktueller Dokumenthash `e95f53e03098c32da01fa27c9c125c7a3a02dc334bbe45f5c0adfda7cf59e60e`.
-- Der Freigabecommit liegt zum Planungszeitpunkt nur in der lokalen Dokumentationshistorie; `origin/main` enthält die Spezifikation nicht. Vor Produktionscode muss Task 1 diesen Stand als eigenen Dokumentationscommit auf die Implementierungsbranch übernehmen und den Hash prüfen.
+- Autoritative Spezifikation: `docs/superpowers/specs/2026-08-03-prompt-studio-v600-phase1-design.md`, ursprünglicher Freigabecommit `29e86a342e6fe9c00a941f02d141716e3c607d9f`, Remote-Publikationscommit `7bb55804ec389edb1dcbedc90cea5c317fc14dfb`, Inhaltsbasis `a9e61232ec11e6f4c57b49f89fa23dbd68a12526a3111e28b39ff4aee44dd140`, Dokumenthash `e95f53e03098c32da01fa27c9c125c7a3a02dc334bbe45f5c0adfda7cf59e60e`.
+- Die spätere Branch `codex/v600-phase1-foundation` zweigt vom dann aktuellen Remote-Tip von `origin/codex/v600-phase1-implementation-plan` ab. Task 1 prüft die dort bereits versionierte Spezifikation und stoppt bei Fehlen, Änderung oder Hashabweichung vor jeder Produktionsänderung.
 - Autoritative Referenz: `Prompt-Studio-V500.6.11-Binding-Selfie-Open-Garment-State.html`, SHA-256 `d1c2a292d203c8f76116b8b0a330bf677be394f86e044706cc3675a7326ac5c7`, 779.221 Byte, 6.554 Zeilen.
 - Autoritativer Referenzbericht: `Prompt-Studio-V500.6.11-Test-Results.json`, SHA-256 `67e71ecb3f401c5d892b4cd21fa1a0f31ab4c858bb35642866e077f244167a63`.
 - Historische Zwischenreferenz: `Prompt-Studio-V500.6.1-Compiler-Language-Integrity-Fix.html`, SHA-256 `619e9a73ec2699d94fa22b8cefa5fba87c6fce14678bec036d8de98e76179199`; sie darf keine aktuellen Golden Master erzeugen.
@@ -25,7 +25,7 @@ Status: **Entwurf – ausdrückliche Freigabe ausstehend**
 - Dauerhafte V600-Daten liegen ausschließlich in IndexedDB. V500-`localStorage` wird nur lesend migriert und niemals verändert oder gelöscht.
 - Cloud Sync, KI-Wissensdatenbank und sämtliche Phase-2-UI-Flags bleiben deaktiviert. Es gibt keine Netzwerkzugriffe.
 - Das Release ist genau eine CSP-konforme HTML-Datei und funktioniert über `file://` und localhost.
-- Zielartefakt: `dist/Prompt-Studio-V600.0.0-Phase1-Foundation.html`; Produktionsbundle kleiner als 1,5 MB.
+- Zielartefakt: `dist/Prompt-Studio-V600.0.0-Phase1-Foundation.html`; Produktionsbundle strikt kleiner als 1.500.000 Byte.
 - Performancebudgets p95 auf M3 Max: Wizard-Boot < 150 ms, Projektladen < 200 ms, Prompt < 100 ms, Autosave < 50 ms, Wizard-Schritt < 50 ms.
 - Kein Task verändert V500-Referenzdateien. Keine Phase-2-Datei wird erstellt oder bearbeitet.
 - Jeder Task folgt Red-Green-Refactor, führt die angegebenen fokussierten Tests aus und endet mit genau dem angegebenen Zwischen-Commit.
@@ -63,10 +63,10 @@ auf die Implementierungsbranch übertragen.
 
 ## Arbeitspaket A – Referenzaufnahme, Buildsystem und Golden Masters
 
-### Task 1: Freigabebasis und unveränderliche Referenzen materialisieren
+### Task 1: Freigabebasis und unveränderliche Referenzen verifizieren
 
 **Files:**
-- Create: `docs/superpowers/specs/2026-08-03-prompt-studio-v600-phase1-design.md`
+- Verify: `docs/superpowers/specs/2026-08-03-prompt-studio-v600-phase1-design.md`
 - Create: `reference/v500.6.11/Prompt-Studio-V500.6.11-Binding-Selfie-Open-Garment-State.html`
 - Create: `reference/v500.6.11/Prompt-Studio-V500.6.11-Test-Results.json`
 - Create: `reference/v500.6.11/manifest.json`
@@ -76,18 +76,24 @@ auf die Implementierungsbranch übertragen.
 - Test: `tests/reference/reference-integrity.test.mjs`
 
 **Interfaces:**
-- Consumes: lokales Git-Objekt `29e86a342e6fe9c00a941f02d141716e3c607d9f` und die drei bereits auf `origin/main` liegenden Referenzdateien.
+- Consumes: die auf `origin/codex/v600-phase1-implementation-plan` bereits versionierte und freigegebene Phase-1-Spezifikation sowie die drei aus `origin/main` geerbten Referenzdateien.
 - Produces: prüfsummenvalidierte, schreibgeschützte Referenzmanifeste und einen wiederholbaren Integritätsbefehl für alle späteren Tasks.
 
-- [ ] **Step 1: Freigabespezifikation kontrolliert übernehmen**
+- [ ] **Step 1: Vorhandene Freigabespezifikation als hartes Eingangsgate prüfen**
 
-Lies die Datei aus dem Freigabecommit, schreibe ausschließlich diesen Inhalt an den Zielpfad und prüfe danach:
+Führe diese Prüfungen aus, bevor ein Verzeichnis, eine Abhängigkeit oder eine
+Produktionsdatei angelegt wird:
 
 ```bash
-shasum -a 256 docs/superpowers/specs/2026-08-03-prompt-studio-v600-phase1-design.md
+git cat-file -e HEAD:docs/superpowers/specs/2026-08-03-prompt-studio-v600-phase1-design.md
+printf '%s  %s\n' 'e95f53e03098c32da01fa27c9c125c7a3a02dc334bbe45f5c0adfda7cf59e60e' 'docs/superpowers/specs/2026-08-03-prompt-studio-v600-phase1-design.md' | shasum -a 256 --check -
+git diff --exit-code -- docs/superpowers/specs/2026-08-03-prompt-studio-v600-phase1-design.md
 ```
 
-Expected: `e95f53e03098c32da01fa27c9c125c7a3a02dc334bbe45f5c0adfda7cf59e60e`.
+Expected: Die Datei ist in `HEAD` vorhanden, der SHA-256 lautet exakt
+`e95f53e03098c32da01fa27c9c125c7a3a02dc334bbe45f5c0adfda7cf59e60e`
+und `git diff` ist leer. Bei fehlender Datei, anderem Hash oder lokalem Diff
+endet die Ausführung sofort, bevor irgendeine Produktionsänderung beginnt.
 
 - [ ] **Step 2: Failing reference-integrity test anlegen**
 
@@ -116,7 +122,7 @@ Expected: drei verifizierte Artefakte, null Fehler.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add docs/superpowers/specs/2026-08-03-prompt-studio-v600-phase1-design.md reference scripts/reference/verify-reference.mjs tests/reference/reference-integrity.test.mjs
+git add reference scripts/reference/verify-reference.mjs tests/reference/reference-integrity.test.mjs
 git commit -m "docs: establish V600 phase 1 reference baseline"
 ```
 
@@ -187,7 +193,7 @@ git commit -m "build: add reproducible V600 single HTML pipeline"
 
 **Acceptance:** Zwei Builds mit identischem `SOURCE_DATE_EPOCH` sind bytegleich; das Artefakt besitzt keine Runtime-Abhängigkeit.
 
-**Rollback:** Build-Commit revertieren; `dist/` bleibt generiert und unversioniert, sofern Task 19 es nicht explizit als Releaseartefakt aufnimmt.
+**Rollback:** Build-Commit revertieren; `dist/` bleibt generiert und unversioniert, sofern Task 22 es nicht explizit als Releaseartefakt aufnimmt.
 
 ### Task 3: Golden-Master-Harness und 24-mal-9-Fixtures
 
@@ -200,6 +206,7 @@ git commit -m "build: add reproducible V600 single HTML pipeline"
 - Create: `tests/golden/fixtures/v500.6.11/matrix.json`
 - Create: `scripts/reference/capture-golden.mjs`
 - Test: `tests/golden/golden-manifest.test.ts`
+- Test: `tests/golden/v500-targeted-regressions.spec.ts`
 
 **Interfaces:**
 - Consumes: autoritative HTML und Referenzbericht; feste Locale `de-DE`/`en-US`, Zeitzone `Europe/Berlin`, deterministische Szenario-IDs.
@@ -217,11 +224,48 @@ Run: `npx vitest run tests/golden/golden-manifest.test.ts`
 
 Expected: FAIL, solange Fixtures fehlen.
 
-- [ ] **Step 3: V500-Harness und Capturer implementieren**
+- [ ] **Step 3: Elf gezielte V500.6.11-Regressionen als ausführbares Gate definieren**
+
+`tests/golden/v500-targeted-regressions.spec.ts` definiert diese vollständige,
+unveränderliche Erwartungsliste aus dem autoritativen Referenzbericht:
+
+```ts
+const TARGETED_REGRESSIONS = [
+  { id: "v5611.gemini-natural.selfie-binding", expected: true },
+  { id: "v5611.gemini-pro.selfie-binding", expected: true },
+  { id: "v5611.universal.selfie-binding", expected: true },
+  { id: "v5611.selfie.no-main-camera-conflict", expected: true },
+  { id: "v5611.selfie.disabled-clean", expected: true },
+  { id: "v5611.open-garment.gemini-natural", expected: true },
+  { id: "v5611.open-garment.gemini-pro", expected: true },
+  { id: "v5611.closed-garment.no-state-block", expected: true },
+  { id: "v5611.json.compact-unchanged", expected: true },
+  { id: "v5611.gate.binding-required", expected: true },
+  { id: "v5611.removed-terms-still-clean", expected: true },
+] as const;
+```
+
+Der Metateil liest `targetedVmRegression.tests` aus
+`reference/v500.6.11/Prompt-Studio-V500.6.11-Test-Results.json`, verlangt exakt
+elf Einträge, elf eindeutige IDs und nach lexikografischer Sortierung exakt
+dieselbe ID-Menge wie `TARGETED_REGRESSIONS`. Eine fehlende, doppelte,
+umbenannte oder zusätzliche ID ist ein Fehler. Anschließend führt der
+Playwright-Harness jeden Fall gegen die autoritative HTML-Datei aus und
+vergleicht `{ id, ok }` mit der Erwartungsliste.
+
+Run:
+
+```bash
+npx playwright test tests/golden/v500-targeted-regressions.spec.ts --project=chromium
+```
+
+Expected: `11 passed`, Ergebnis 11/11 und für jede ID `ok === true`.
+
+- [ ] **Step 4: V500-Harness und Capturer implementieren**
 
 Der Playwright-Harness lädt ausschließlich die lokale Referenzdatei, setzt Eingaben über dokumentierte DOM-Aktionen, wartet deterministisch auf Promptfreigabe und speichert je Kombination Eingabe, Profil, Sprache, Ausgabe, Länge und SHA-256. Er führt zusätzlich `runSelfTests()` aus und verlangt 941/941.
 
-- [ ] **Step 4: Fixtures zweimal erzeugen und Bytegleichheit prüfen**
+- [ ] **Step 5: Fixtures zweimal erzeugen und Bytegleichheit prüfen**
 
 Run:
 
@@ -229,11 +273,13 @@ Run:
 node scripts/reference/capture-golden.mjs
 node scripts/reference/capture-golden.mjs --verify-existing
 npx vitest run tests/golden/golden-manifest.test.ts
+npx playwright test tests/golden/v500-targeted-regressions.spec.ts --project=chromium
 ```
 
-Expected: 216/216 Kombinationen, unveränderte Fixture-Hashes, gültiges Standard JSON und Safe JSON.
+Expected: 216/216 Kombinationen, 11/11 gezielte Regressionen, unveränderte
+Fixture-Hashes, gültiges Standard JSON und Safe JSON.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add tests/golden scripts/reference/capture-golden.mjs
@@ -908,15 +954,41 @@ git commit -m "feat: add nine V500-compatible prompt profiles"
 ### Task 17: DOM-, CSS- und visuelle Wizard-Basis
 
 **Files:**
+- Modify: `playwright.config.ts`
 - Modify: `src/ui/shell.html`
 - Modify: `src/ui/styles.css`
 - Create: `src/ui/wizard/wizard-view.ts`
 - Create: `src/ui/wizard/steps.ts`
 - Create: `src/ui/dom/dom-ids.ts`
 - Create: `tests/browser/wizard-visual.spec.ts`
-- Create: `tests/browser/fixtures/v500.6.11-screenshots/wizard-desktop.png`
-- Create: `tests/browser/fixtures/v500.6.11-screenshots/wizard-mobile.png`
-- Create: `tests/browser/fixtures/v500.6.11-screenshots/dialogs-and-output.png`
+- Create: `tests/browser/visual-font-lock.css`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/desktop/wizard-step-01.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/desktop/wizard-step-02.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/desktop/wizard-step-03.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/desktop/wizard-step-04.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/desktop/wizard-step-05.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/desktop/wizard-step-06.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/desktop/wizard-step-07.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/desktop/wizard-step-08.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/desktop/wizard-step-09.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/desktop/wizard-step-10.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/mobile/wizard-step-01.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/mobile/wizard-step-02.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/mobile/wizard-step-03.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/mobile/wizard-step-04.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/mobile/wizard-step-05.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/mobile/wizard-step-06.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/mobile/wizard-step-07.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/mobile/wizard-step-08.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/mobile/wizard-step-09.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/mobile/wizard-step-10.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/states/profile-selection.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/states/prompt-output.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/states/diagnostics.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/states/confirmation-dialog.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/states/import-dialog.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/states/export-dialog.png`
+- Create: `tests/browser/fixtures/v500.6.11-screenshots/states/recovery-state.png`
 - Test: `tests/contracts/dom-integrity.contract.test.ts`
 
 **Interfaces:**
@@ -924,11 +996,72 @@ git commit -m "feat: add nine V500-compatible prompt profiles"
 
 - [ ] **Step 1: Referenzscreenshots und DOM-Vertrag erfassen**
 
-Erfasse Desktop und Mobile für alle zehn Schritte, Profilwahl, Promptausgabe, Diagnose und Bestätigungsdialog mit stabiler Viewport-/Fontkonfiguration.
+`playwright.config.ts` definiert die Projekte `chromium-v500-desktop` und
+`webkit-v500-mobile`. Beide verwenden `deviceScaleFactor: 1`, Locale `de-DE`,
+Zeitzone `Europe/Berlin`, Farbschema `light` und reduzierte Bewegung. Desktop
+verwendet 1440 × 1100 CSS-Pixel, Mobile 390 × 844 CSS-Pixel.
+
+Vor jeder Aufnahme injiziert der Test `tests/browser/visual-font-lock.css` mit
+der Version `v500-font-lock-v1`:
+
+```css
+html, body, button, input, select, textarea {
+  font-family: Arial, "Helvetica Neue", sans-serif !important;
+  font-synthesis: none !important;
+  text-rendering: geometricPrecision !important;
+}
+*, *::before, *::after {
+  animation: none !important;
+  transition: none !important;
+  caret-color: transparent !important;
+}
+```
+
+Der Test wartet auf `document.fonts.ready`, zwei `requestAnimationFrame`-Zyklen
+und den anwendungsspezifischen Idle-Status. Jede Baseline bildet genau einen
+gleichzeitig sichtbaren Zustand ab; Collagen und Bilder mit mehreren
+Wizard-Schritten sind verboten.
+
+Alle Tabellenpfade sind relativ zu
+`tests/browser/fixtures/v500.6.11-screenshots/` und bilden zusammen den
+vollständigen, verbindlichen Baseline-Satz.
+
+| Baseline-Datei | Viewport | Browserprojekt | Schrift | Vergleichsgate |
+|---|---:|---|---|---|
+| `desktop/wizard-step-01.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `desktop/wizard-step-02.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `desktop/wizard-step-03.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `desktop/wizard-step-04.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `desktop/wizard-step-05.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `desktop/wizard-step-06.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `desktop/wizard-step-07.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `desktop/wizard-step-08.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `desktop/wizard-step-09.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `desktop/wizard-step-10.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `mobile/wizard-step-01.png` | 390×844 | `webkit-v500-mobile` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.0015` |
+| `mobile/wizard-step-02.png` | 390×844 | `webkit-v500-mobile` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.0015` |
+| `mobile/wizard-step-03.png` | 390×844 | `webkit-v500-mobile` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.0015` |
+| `mobile/wizard-step-04.png` | 390×844 | `webkit-v500-mobile` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.0015` |
+| `mobile/wizard-step-05.png` | 390×844 | `webkit-v500-mobile` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.0015` |
+| `mobile/wizard-step-06.png` | 390×844 | `webkit-v500-mobile` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.0015` |
+| `mobile/wizard-step-07.png` | 390×844 | `webkit-v500-mobile` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.0015` |
+| `mobile/wizard-step-08.png` | 390×844 | `webkit-v500-mobile` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.0015` |
+| `mobile/wizard-step-09.png` | 390×844 | `webkit-v500-mobile` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.0015` |
+| `mobile/wizard-step-10.png` | 390×844 | `webkit-v500-mobile` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.0015` |
+| `states/profile-selection.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `states/prompt-output.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `states/diagnostics.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `states/confirmation-dialog.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `states/import-dialog.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `states/export-dialog.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
+| `states/recovery-state.png` | 1440×1100 | `chromium-v500-desktop` | `v500-font-lock-v1` | `threshold: 0.15`, `maxDiffPixelRatio: 0.001` |
 
 - [ ] **Step 2: Failing DOM- und Visual-Tests schreiben**
 
-Tests erwarten zehn Schritte, V500-Bezeichnungen/-Reihenfolge, eindeutige IDs, keine Phase-2-Navigation und definierte visuelle Schwellenwerte.
+Tests erwarten zehn Schritte, V500-Bezeichnungen/-Reihenfolge, eindeutige IDs,
+keine Phase-2-Navigation und exakt alle 27 Baseline-Dateien. Jede Aufnahme
+verwendet `toHaveScreenshot()` mit dem Tabellen-Gate; eine fehlende,
+zusätzliche oder wiederverwendete Baseline-Datei ist ein Contract-Fehler.
 
 - [ ] **Step 3: Shell, Styles und statischen View portieren**
 
@@ -1105,6 +1238,9 @@ git commit -m "test: add complete V600 phase 1 release matrix"
 
 **Files:**
 - Create: `tests/performance/phase1-budgets.spec.ts`
+- Create: `tests/performance/bundle-budget.test.ts`
+- Create: `tests/performance/fixtures/representative-project.json`
+- Create: `tests/performance/fixtures/autosave-project-without-assets.json`
 - Create: `scripts/measure-bundle.mjs`
 - Create: `scripts/verify-reproducible-build.mjs`
 - Create: `docs/reports/phase1-performance.md`
@@ -1114,23 +1250,45 @@ git commit -m "test: add complete V600 phase 1 release matrix"
 
 - [ ] **Step 1: Failing Budgettests schreiben**
 
-Fixtures verwenden repräsentative Projekte ohne Bildassets und messen 30 Warmdurchläufe nach 5 Aufwärmläufen mit injizierter MonotonicClock.
+Die Spezifikation definiert exakt sechs Gates: fünf p95-Latenzbudgets und ein
+deterministisches Größenbudget. Für die fünf Laufzeitmessungen verwendet
+`tests/performance/phase1-budgets.spec.ts` das Playwright-Projekt
+`chromium-performance`, fünf ausgeschlossene Aufwärmläufe, 30 Messläufe und
+die injizierte `MonotonicClock`. p95 wird per Nearest-Rank über die 30 sortierten
+Messwerte gebildet.
+
+| Test-ID | Vorgang | Exakte Grenze | Fixture | Messmethode |
+|---|---|---:|---|---|
+| `perf.wizard-boot.p95-under-150ms` | Wizard nach vollständig ausgeführtem App-Boot interaktiv | p95 < 150 ms | `representative-project.json`, als aktives Projekt in frischer Schema-1-IDB | vom Start des injizierten Bootstrap-Lifecycle bis `wizardViewModel.status === "interactive"` nach erstem Render |
+| `perf.project-load.p95-under-200ms` | Projekt aus IndexedDB laden | p95 < 200 ms | `representative-project.json` mit 10 Wizard-Schritten und allen neun Profilreferenzen | vom Repository-Read-Start bis zum tief eingefrorenen Domain-Resultat, ohne Renderzeit |
+| `perf.prompt-build.p95-under-100ms` | Prompt erzeugen | p95 < 100 ms | `representative-project.json`; je Messrunde alle neun Profile in stabiler Profil-ID-Reihenfolge | je Profil vom Constraint-Pipeline-Start bis `PromptResult`; Gate ist der höchste Profil-p95 |
+| `perf.autosave.p95-under-50ms` | Autosave ohne Bildassets | p95 < 50 ms | `autosave-project-without-assets.json`, eine validierte Feldänderung, leere Assetliste | vom Flush-Command bis zum erfolgreichen Abschluss der IndexedDB-Transaktion |
+| `perf.wizard-step.p95-under-50ms` | Wizard-Schritt wechseln | p95 < 50 ms | `representative-project.json`; Übergänge 1→2 bis 9→10 zyklisch verteilt | vom Navigation-Command bis zum fokussierten, als interaktiv markierten Zielschritt |
+| `bundle.production-html.under-1500000-bytes` | Produktionsbundle | Dateigröße < 1.500.000 Byte | Produktionsbuild mit `SOURCE_DATE_EPOCH=0` und vollständig aktivierter Phase-1-Komposition | `Buffer.byteLength()` der finalen HTML-Datei; deterministischer Einzelwert, kein p95 |
+
+`tests/performance/bundle-budget.test.ts` führt das sechste Gate separat aus.
+Damit ist die Zählung eindeutig: fünf p95-Tests plus ein Bundlegrößentest,
+insgesamt sechs Spezifikationsgates.
 
 - [ ] **Step 2: Mess- und Reproduzierbarkeitsskripte implementieren**
 
-Bundlelimit ist 1.572.864 Byte. Zwei saubere Builds mit identischem `SOURCE_DATE_EPOCH` müssen denselben SHA-256 liefern; Buildmetadaten dürfen keine aktuelle Uhrzeit enthalten.
+`scripts/measure-bundle.mjs` gibt Pfad, exakte Bytezahl, Grenzwert 1.500.000 und
+Pass/Fail aus. Zwei saubere Builds mit `SOURCE_DATE_EPOCH=0` müssen denselben
+SHA-256 liefern; Buildmetadaten dürfen keine aktuelle Uhrzeit enthalten.
 
 - [ ] **Step 3: Budgets messen**
 
 Run:
 
 ```bash
-npx playwright test tests/performance/phase1-budgets.spec.ts --project=chromium
+npx playwright test tests/performance/phase1-budgets.spec.ts --project=chromium-performance
+npx vitest run tests/performance/bundle-budget.test.ts
 node scripts/measure-bundle.mjs
 node scripts/verify-reproducible-build.mjs
 ```
 
-Expected: alle sechs Spezifikationsbudgets innerhalb Grenze, Bundle < 1,5 MiB, Doppelbuild bytegleich.
+Expected: fünf von fünf p95-Latenztests und das eine Bundlegrößen-Gate bestehen;
+Bundle < 1.500.000 Byte, Doppelbuild bytegleich.
 
 - [ ] **Step 4: Commit**
 
@@ -1148,6 +1306,8 @@ git commit -m "test: enforce V600 phase 1 performance budgets"
 **Files:**
 - Create: `dist/Prompt-Studio-V600.0.0-Phase1-Foundation.html`
 - Create: `dist/Prompt-Studio-V600.0.0-Phase1-Foundation.sha256`
+- Create: `scripts/generate-release-hashes.mjs`
+- Test: `tests/build/release-hash-list.test.ts`
 - Create: `docs/reports/phase1-verification-report.md`
 - Create: `docs/reports/phase1-changelog.md`
 - Create: `docs/architecture/phase1-overview.md`
@@ -1188,13 +1348,61 @@ node scripts/verify-source-integrity.mjs --release
 node scripts/verify-csp.mjs dist/Prompt-Studio-V600.0.0-Phase1-Foundation.html
 ```
 
-Die Artefakt-`.sha256`-Datei enthält exakt Hash, zwei Leerzeichen und Artefaktname plus LF. `docs/reports/phase1-hash-list.sha256` enthält zusätzlich sortierte Hashes des Artefakts, der Referenzmanifeste, Golden-Master-Matrix und aller finalen Berichte.
+Die Artefakt-`.sha256`-Datei enthält exakt Hash, zwei Leerzeichen und
+Artefaktname plus LF.
 
 - [ ] **Step 3: Berichte aus tatsächlichen Resultaten erstellen**
 
 Prüfbericht und Abnahmebericht listen jeden Befehl, Exit-Code, Testanzahl, Golden-Master-Ergebnis, 216er Matrix, Browser, physischen iPhone-Viewer, `file://`, localhost, CSP, No-Network, Migration, Recovery, Performance, Bundle und bekannte Restprobleme. Der Changelog nennt die korrigierten V500.6.11-Referenzschulden. Architektur- und Moduldokumentation beschreiben alle öffentlichen Contracts und Diagnoseversionen. `phase2-improvements-after-phase1.md` enthält ausschließlich Empfehlungen aus nachgewiesenen Phase-1-Erfahrungen und aktiviert oder implementiert keine Phase-2-Funktion.
 
-- [ ] **Step 4: Release-Gate wiederholen**
+- [ ] **Step 4: Vollständige Hashliste mit geschlossener Include-Liste erzeugen**
+
+`scripts/generate-release-hashes.mjs` definiert diese explizite Liste:
+
+```js
+const OUTPUT_PATH = "docs/reports/phase1-hash-list.sha256";
+const INCLUDE_PATHS = [
+  "dist/Prompt-Studio-V600.0.0-Phase1-Foundation.html",
+  "dist/Prompt-Studio-V600.0.0-Phase1-Foundation.sha256",
+  "reference/v500.6.11/Prompt-Studio-V500.6.11-Binding-Selfie-Open-Garment-State.html",
+  "reference/v500.6.11/Prompt-Studio-V500.6.11-Test-Results.json",
+  "reference/v500.6.11/manifest.json",
+  "reference/historical/v500.6.1/Prompt-Studio-V500.6.1-Compiler-Language-Integrity-Fix.html",
+  "reference/historical/v500.6.1/manifest.json",
+  "tests/golden/fixtures/manifest.json",
+  "tests/golden/fixtures/v500.6.11/matrix.json",
+  "docs/reports/v500.6.11-reference-debt.md",
+  "docs/reports/phase1-test-protocol.md",
+  "docs/reports/phase1-performance.md",
+  "docs/reports/phase1-iphone-viewer.md",
+  "docs/reports/phase1-verification-report.md",
+  "docs/reports/phase1-changelog.md",
+  "docs/architecture/phase1-overview.md",
+  "docs/modules/phase1-modules.md",
+  "docs/reports/phase1-migration-report.md",
+  "docs/reports/phase1-risk-register.md",
+  "docs/reports/phase1-acceptance.md",
+  "docs/reports/phase2-improvements-after-phase1.md",
+];
+```
+
+Der Generator bricht ab, wenn `OUTPUT_PATH` in `INCLUDE_PATHS` vorkommt, ein
+Pfad fehlt oder doppelt vorhanden ist. Er sortiert die Pfade byteweise
+aufsteigend und schreibt pro Datei `sha256`, zwei Leerzeichen, POSIX-Pfad und
+LF. `phase1-hash-list.sha256` schließt sich damit ausdrücklich selbst aus.
+
+Run:
+
+```bash
+node scripts/generate-release-hashes.mjs
+npx vitest run tests/build/release-hash-list.test.ts
+```
+
+Expected: 21 sortierte, eindeutig zuordenbare Zeilen; keine Zeile referenziert
+`docs/reports/phase1-hash-list.sha256`, und jeder Hash stimmt mit den aktuellen
+Dateibytes überein.
+
+- [ ] **Step 5: Release-Gate wiederholen**
 
 Run:
 
@@ -1207,10 +1415,10 @@ git status --short
 
 Expected: alle Tests grün; Status enthält ausschließlich die ausdrücklich gelisteten Release- und Berichtdateien.
 
-- [ ] **Step 5: Finalen Phase-1-Commit erstellen**
+- [ ] **Step 6: Finalen Phase-1-Commit erstellen**
 
 ```bash
-git add dist/Prompt-Studio-V600.0.0-Phase1-Foundation.html dist/Prompt-Studio-V600.0.0-Phase1-Foundation.sha256 docs/reports docs/architecture docs/modules README.md
+git add dist/Prompt-Studio-V600.0.0-Phase1-Foundation.html dist/Prompt-Studio-V600.0.0-Phase1-Foundation.sha256 scripts/generate-release-hashes.mjs tests/build/release-hash-list.test.ts docs/reports docs/architecture docs/modules README.md
 git commit -m "release: add Prompt Studio V600 phase 1 foundation"
 ```
 
@@ -1241,4 +1449,16 @@ git commit -m "release: add Prompt Studio V600 phase 1 foundation"
 
 ## Freigabegate vor Ausführung
 
-Dieser Plan ist selbst kein Implementierungsauftrag. Nach seinem Commit und Push endet die aktuelle Arbeit. Produktionscode beginnt erst nach ausdrücklicher Freigabe dieses Dokuments und auf einer neuen Implementierungsbranch `codex/v600-phase1-foundation`, die von aktuellem `origin/main` abzweigt.
+Dieser Plan ist selbst kein Implementierungsauftrag. Nach seinem Commit und Push
+endet die aktuelle Arbeit. Produktionscode beginnt erst nach ausdrücklicher
+Freigabe dieses Dokuments. Danach wird die Implementierungsbranch ausschließlich
+vom aktualisierten Remote-Tip des Plan-Branches erzeugt:
+
+```bash
+git fetch origin --prune
+git switch -c codex/v600-phase1-foundation origin/codex/v600-phase1-implementation-plan
+git merge-base --is-ancestor origin/codex/v600-phase1-implementation-plan HEAD
+```
+
+Alle drei Befehle müssen erfolgreich sein. Die Implementierungsbranch darf
+nicht erneut direkt von `origin/main` abzweigen.
