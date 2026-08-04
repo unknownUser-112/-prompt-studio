@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "tests",
+  outputDir: "node_modules/.cache/prompt-studio-playwright-results",
   snapshotPathTemplate:
     "{testDir}/__screenshots__/{testFilePath}/{arg}-{projectName}{ext}",
   projects: [
