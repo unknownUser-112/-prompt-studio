@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "referenceVersion": "V500.6.11",
+  "sources": [
+    {
+      "path": "reference/v500.6.11/Prompt-Studio-V500.6.11-Binding-Selfie-Open-Garment-State.html",
+      "bytes": 779221,
+      "sha256": "d1c2a292d203c8f76116b8b0a330bf677be394f86e044706cc3675a7326ac5c7"
+    },
+    {
+      "path": "reference/v500.6.11/Prompt-Studio-V500.6.11-Test-Results.json",
+      "bytes": 3319,
+      "sha256": "67e71ecb3f401c5d892b4cd21fa1a0f31ab4c858bb35642866e077f244167a63"
+    }
+  ],
+  "scenarioCount": 24,
+  "profileCount": 9,
+  "combinationCount": 216,
+  "scenarioIds": [
+    "baseline.de",
+    "baseline.en",
+    "character-sheet.compact.en",
+    "character-sheet.en",
+    "single-reference.de",
+    "single-reference.en",
+    "selfie.front-enabled.en",
+    "selfie.disabled.en",
+    "additional-person.en",
+    "garment.open.en",
+    "garment.closed.en",
+    "material-physics.de",
+    "material-physics.en",
+    "adaptive-realism.de",
+    "adaptive-realism.en",
+    "camera.full-body-85mm.de",
+    "camera.smartphone-portrait.en",
+    "lighting.weather-resolution.de",
+    "branding.named.de",
+    "branding.named.en",
+    "safety.adult-only.en",
+    "quality-gate.release.de",
+    "json.baseline.de",
+    "json.v5611-special.en"
+  ],
+  "profileIds": [
+    "universal",
+    "geminiNatural",
+    "geminiPro",
+    "nanoBananaPro",
+    "gptImage2",
+    "flux",
+    "sdxl",
+    "standardJson",
+    "safeJson"
+  ],
+  "fixture": {
+    "path": "v500.6.11/matrix.json",
+    "bytes": 1617025,
+    "sha256": "ecf1b394353d411818fbbb9e27bb1aba532a81097276587a642d29342274460c"
+  }
+}
