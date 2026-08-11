@@ -5,8 +5,11 @@
 - Task 1: abgeschlossen (`79cb86d`, `14ff489`).
 - Task 2: abgeschlossen (`002a01c`).
 - Task 3: abgeschlossen und freigegeben (`ff434ef`, `5f93739`).
+- Task 4: abgeschlossen; verbindliche Abschlussbasis `b4f97ed`, alle
+  Task-4- und Arbeitspaket-A-Gates grün.
+- Arbeitspaket A: abgeschlossen.
 
-## Aktiver Task
+## Task-4-Verlauf (abgeschlossen)
 
 - Task 4 Basis: `bd921ac`.
 - Fixrunde 1: `2b83727`.
@@ -109,6 +112,10 @@
   Browser-Sandboxfehler wurden identisch mit Freigabe wiederholt. Scope
   weiterhin exakt drei versionierte Dateien, HEAD `ab92b2c`, kein Commit/Push;
   unabhängiges Re-Review abschließend `NO_FINDINGS`.
+
+- Formaler Abschluss: Task 4 und Arbeitspaket A am 2026-08-11 auf Basis des
+  Checkpoints `b4f97ed` abgeschlossen. Task 5, Arbeitspaket B und Phase 2
+  wurden nicht begonnen.
 
 ## Verbindliche Gates
 
