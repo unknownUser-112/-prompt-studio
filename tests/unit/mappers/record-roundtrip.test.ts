@@ -118,6 +118,27 @@ describe("persistence record mappers", () => {
       error: { code: "storage/invalid-record" },
     });
   });
+
+  it.each(["duplicate", "restore", "milestone"] as const)(
+    "roundtrips a project revision with the %s reason",
+    (reason) => {
+      const record = {
+        ...metadata,
+        projectId: "project-1",
+        sequence: 5,
+        reason,
+        parentRevisionId: "revision-4",
+        snapshot: { name: "Studio" },
+        sha256: "revision-hash",
+      };
+
+      const mapped = mapProjectRevisionRecordToEntity(record);
+
+      expect(mapped.ok).toBe(true);
+      if (!mapped.ok) return;
+      expect(mapProjectRevisionEntityToRecord(mapped.value)).toEqual(record);
+    },
+  );
 });
 
 function canonicalSerialize(value: unknown): string {

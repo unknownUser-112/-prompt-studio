@@ -7,7 +7,16 @@ import {
 } from "../../../contracts/storage/storage-errors";
 import { IndexedDbRecordStore, type IndexedDbAdapter } from "../indexeddb-adapter";
 
-const REASONS: readonly ProjectRevisionReason[] = ["created", "autosave", "manual-save", "import", "migration"];
+const REASONS: readonly ProjectRevisionReason[] = [
+  "created",
+  "autosave",
+  "manual-save",
+  "import",
+  "migration",
+  "duplicate",
+  "restore",
+  "milestone",
+];
 
 export class IndexedDbProjectRevisionRepository implements ProjectRevisionRepository {
   private readonly records: IndexedDbRecordStore<ProjectRevisionRecord>;

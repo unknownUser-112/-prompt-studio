@@ -10,7 +10,16 @@ import {
 import type { ProjectRevision } from "../../domain/entities/project-revision";
 
 export const PROJECT_REVISION_MAPPER_VERSION = 1 as const;
-const REASONS = ["created", "autosave", "manual-save", "import", "migration"] as const;
+const REASONS = [
+  "created",
+  "autosave",
+  "manual-save",
+  "import",
+  "migration",
+  "duplicate",
+  "restore",
+  "milestone",
+] as const;
 
 export function mapProjectRevisionRecordToEntity(record: unknown): Result<ProjectRevision, StorageError> {
   if (

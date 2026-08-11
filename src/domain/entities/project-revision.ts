@@ -5,7 +5,10 @@ export type ProjectRevisionReason =
   | "autosave"
   | "manual-save"
   | "import"
-  | "migration";
+  | "migration"
+  | "duplicate"
+  | "restore"
+  | "milestone";
 
 export interface ProjectRevision {
   readonly id: string;
