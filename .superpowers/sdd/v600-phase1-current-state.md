@@ -1,32 +1,28 @@
 # V600 Phase 1 – Current Execution State
 
 Branch: codex/v600-phase1-foundation
-Last completed task: 7
-Next task: 8
+Last completed task: 8
+Next task: 9
 Work package: B – Core, Contracts, Plugin-System und Diagnostik
-Last commit: Pending before Task-7 commit
+Last commit: Pending before Task-8 commit
 Phase 2: LOCKED
 V500 references: IMMUTABLE
 Architecture baseline: UNCHANGED
 Review policy: ONE ROUND MAXIMUM
+Review status: ONE ROUND COMPLETE; blocking findings fixed
 
 ## Completed
 
-- Task 1
-- Task 2
-- Task 3
-- Task 4
-- Task 5
-- Task 6
-- Task 7
+- Tasks 1–8
 
 ## Current quality baseline
 
-- Vitest: 258 PASS
+- Vitest: 261 PASS
+- Focused Task-8 tests: 3/3 PASS
+- Module boundaries: PASS
 - Typecheck: PASS
 - npm run verify: PASS
-- Golden-Manifest: 2/2 verified
-- V500 reference artifacts: three last verified
+- git diff --check: PASS
 
 ## Execution rules
 
