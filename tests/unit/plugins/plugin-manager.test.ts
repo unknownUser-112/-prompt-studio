@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { ConstraintProvider } from "../../../src/domain/contracts/constraints/provider";
 import type { PluginManifest, PromptStudioPlugin } from "../../../src/contracts/plugins/plugin-manifest";
 import { PluginManager } from "../../../src/plugins/plugin-manager";
 
@@ -178,5 +179,22 @@ describe("PluginManager", () => {
       "registerUiBinding",
     ]);
     expect(receivedRegistrar).not.toHaveProperty("appCore");
+  });
+
+  it("retains complete constraint providers from separate plugins", () => {
+    const first: ConstraintProvider = { id: "first", version: "1.0.0", sourcePluginId: "first", rules: () => [] };
+    const second: ConstraintProvider = { id: "second", version: "1.0.0", sourcePluginId: "second", rules: () => [] };
+    const manager = new PluginManager();
+
+    manager.load([
+      plugin("first", {}, (registrar) => registrar.registerConstraint({ id: first.id, provider: first })),
+      plugin("second", {}, (registrar) => registrar.registerConstraint({ id: second.id, provider: second })),
+    ]);
+
+    expect(manager.constraintProviders).toEqual([first, second]);
+    expect(manager.constraintProviders.map((provider) => [provider.id, provider.rules])).toEqual([
+      ["first", first.rules],
+      ["second", second.rules],
+    ]);
   });
 });

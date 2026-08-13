@@ -1,0 +1,11 @@
+import type { ConstraintProvider } from "../../domain/contracts/constraints/provider";
+import type { ConstraintRule } from "../../domain/contracts/constraints/rule";
+const PLUGIN_ID = "garment";
+const VERSION = "1.0.0";
+const rules: readonly ConstraintRule[] = [
+  { id: "garment.outer", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Preserves the selected outer garment.", evaluate: ({ facts }) => { const outer = nestedString(facts.values, "garment", "outer"); return outer === undefined ? [] : [{ path: "garment.outer", sourceField: "garment.outer", value: outer }]; } },
+  { id: "garment.upper-layer", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Preserves the selected upper layer.", evaluate: ({ facts }) => { const upperLayer = nestedString(facts.values, "garment", "upperLayer"); return upperLayer === undefined ? [] : [{ path: "garment.upperLayer", sourceField: "garment.upperLayer", value: upperLayer }]; } },
+  { id: "garment.open-state", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Open outer garments require an explicit upper layer.", evaluate: ({ facts }) => { const outer = nestedString(facts.values, "garment", "outer"); if (outer === undefined || !/\bopen\b/iu.test(outer)) return []; if (nestedString(facts.values, "garment", "upperLayer") === undefined) throw new Error("Open garment requires an upper layer"); return [{ path: "garment.open", sourceField: "garment.outer", value: true }]; } },
+];
+export const garmentProvider: ConstraintProvider = { id: PLUGIN_ID, version: VERSION, sourcePluginId: PLUGIN_ID, rules: () => rules };
+function nestedString(value: unknown, first: string, second: string): string | undefined { if (value === null || Array.isArray(value) || typeof value !== "object") return undefined; const child = (value as Readonly<Record<string, unknown>>)[first]; return child !== null && !Array.isArray(child) && typeof child === "object" && typeof (child as Readonly<Record<string, unknown>>)[second] === "string" ? (child as Readonly<Record<string, unknown>>)[second] as string : undefined; }

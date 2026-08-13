@@ -1,5 +1,6 @@
 import type { PromptStudioPlugin } from "../contracts/plugins/plugin-manifest";
 import type { PluginRegistrar } from "../contracts/plugins/plugin-registrar";
+import type { ConstraintProvider } from "../domain/contracts/constraints/provider";
 import { CapabilityGraph } from "./capability-graph";
 
 export type PluginStatus = "active" | "failed";
@@ -8,6 +9,7 @@ const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-([0-9A-Za-z-]
 
 export class PluginManager {
   private readonly diagnostics_: string[] = [];
+  private constraintProviders_: readonly ConstraintProvider[] = [];
   private readonly statuses = new Map<string, PluginStatus>();
   private orderedPluginIds_: readonly string[] = [];
 
@@ -17,6 +19,10 @@ export class PluginManager {
 
   get orderedPluginIds(): readonly string[] {
     return this.orderedPluginIds_;
+  }
+
+  get constraintProviders(): readonly ConstraintProvider[] {
+    return this.constraintProviders_;
   }
 
   get canGeneratePrompts(): boolean {
@@ -30,6 +36,7 @@ export class PluginManager {
 
   load(plugins: readonly PromptStudioPlugin[]): void {
     this.diagnostics_.length = 0;
+    this.constraintProviders_ = [];
     this.statuses.clear();
     this.pluginsById = new Map();
 
@@ -63,7 +70,9 @@ export class PluginManager {
     for (const id of this.orderedPluginIds_) {
       if (this.statuses.get(id) !== "active") continue;
       try {
-        this.pluginsById.get(id)?.register(createRegistrar());
+        this.pluginsById.get(id)?.register(createRegistrar((contribution) => {
+          this.constraintProviders_ = [...this.constraintProviders_, contribution.provider];
+        }));
       } catch (error) {
         this.fail(id, error instanceof Error ? error.message : String(error));
         this.failMissingCapabilities(providers);
@@ -139,11 +148,11 @@ function isSemVer(value: string): boolean {
   );
 }
 
-function createRegistrar(): PluginRegistrar {
+function createRegistrar(onConstraint: (contribution: Parameters<PluginRegistrar["registerConstraint"]>[0]) => void): PluginRegistrar {
   return {
     registerBenchmark: () => undefined,
     registerCapability: () => undefined,
-    registerConstraint: () => undefined,
+    registerConstraint: onConstraint,
     registerDiagnostic: () => undefined,
     registerJsonRenderer: () => undefined,
     registerMigration: () => undefined,

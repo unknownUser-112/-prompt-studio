@@ -1,7 +1,10 @@
+import type { ConstraintProvider } from "../../domain/contracts/constraints/provider";
+
 export type CapabilityId = string;
 
 export interface ConstraintContribution {
   readonly id: string;
+  readonly provider: ConstraintProvider;
 }
 
 export interface PromptSectionProvider {

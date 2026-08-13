@@ -1,0 +1,11 @@
+import type { ConstraintProvider } from "../../domain/contracts/constraints/provider";
+import type { ConstraintRule } from "../../domain/contracts/constraints/rule";
+const PLUGIN_ID = "safety";
+const VERSION = "1.0.0";
+const rules: readonly ConstraintRule[] = [
+  { id: "safety.adult-subject", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "validation", conflictStrategy: "reject", description: "Allows only adult character sheets.", evaluate: ({ facts }) => { const age = nestedNumber(facts.values, "character", "age"); if (age === undefined) return []; if (age < 18) throw new Error("Safety requires an adult character"); return [{ path: "safety.adult", sourceField: "character.age", value: true }]; } },
+  { id: "safety.quality-gate", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "validation", conflictStrategy: "reject", description: "Blocks a V500.6.11 quality gate that did not release the prompt.", evaluate: ({ facts }) => { const passed = nestedBoolean(facts.values, "quality", "passed"); if (passed === undefined) return []; if (!passed) throw new Error("Quality gate blocked"); return [{ path: "quality.passed", sourceField: "quality.passed", value: true }]; } },
+];
+export const safetyProvider: ConstraintProvider = { id: PLUGIN_ID, version: VERSION, sourcePluginId: PLUGIN_ID, rules: () => rules };
+function nestedNumber(value: unknown, first: string, second: string): number | undefined { if (value === null || Array.isArray(value) || typeof value !== "object") return undefined; const child = (value as Readonly<Record<string, unknown>>)[first]; return child !== null && !Array.isArray(child) && typeof child === "object" && typeof (child as Readonly<Record<string, unknown>>)[second] === "number" ? (child as Readonly<Record<string, unknown>>)[second] as number : undefined; }
+function nestedBoolean(value: unknown, first: string, second: string): boolean | undefined { if (value === null || Array.isArray(value) || typeof value !== "object") return undefined; const child = (value as Readonly<Record<string, unknown>>)[first]; return child !== null && !Array.isArray(child) && typeof child === "object" && typeof (child as Readonly<Record<string, unknown>>)[second] === "boolean" ? (child as Readonly<Record<string, unknown>>)[second] as boolean : undefined; }
