@@ -15,8 +15,8 @@ export class IndexedDbProjectRepository implements ProjectRepository {
     this.records = new IndexedDbRecordStore(adapter, "Projects", "project", isProjectRecord);
   }
 
-  public getById: ProjectRepository["getById"] = (id) => this.records.get(id);
-  public list: ProjectRepository["list"] = () => this.records.list();
+  public getById: ProjectRepository["getById"] = (id, transaction) => this.records.get(id, transaction);
+  public list: ProjectRepository["list"] = (transaction) => this.records.list(transaction);
   public put: ProjectRepository["put"] = (record, transaction) => this.records.put(record, transaction);
   public delete: ProjectRepository["delete"] = (id, transaction) => this.records.delete(id, transaction);
 }

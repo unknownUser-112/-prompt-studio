@@ -25,12 +25,12 @@ export class IndexedDbProjectRevisionRepository implements ProjectRevisionReposi
     this.records = new IndexedDbRecordStore(adapter, "ProjectRevisions", "project revision", isProjectRevisionRecord);
   }
 
-  public getById: ProjectRevisionRepository["getById"] = (id) => this.records.get(id);
-  public async listByProjectId(projectId: string) {
-    const result = await this.records.listByIndex("projectId", projectId);
+  public getById: ProjectRevisionRepository["getById"] = (id, transaction) => this.records.get(id, transaction);
+  public listByProjectId: ProjectRevisionRepository["listByProjectId"] = async (projectId, transaction) => {
+    const result = await this.records.listByIndex("projectId", projectId, transaction);
     if (!result.ok) return result;
     return { ok: true as const, value: [...result.value].sort((left, right) => left.sequence - right.sequence) };
-  }
+  };
   public put: ProjectRevisionRepository["put"] = (record, transaction) => this.records.put(record, transaction);
   public delete: ProjectRevisionRepository["delete"] = (id, transaction) => this.records.delete(id, transaction);
 }

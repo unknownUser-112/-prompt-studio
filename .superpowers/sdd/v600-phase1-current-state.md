@@ -1,26 +1,25 @@
 # V600 Phase 1 – Current Execution State
 
 Branch: codex/v600-phase1-foundation
-Last completed task: 11
-Next task: 12
-Work package: C – IndexedDB, Repositories und Application Services
-Last commit: Pending before Task-11 commit
+Last completed task: 12
+Next task: 13
+Work package: C COMPLETE
+Last commit: Pending before Task-12 commit
 Phase 2: LOCKED
 V500 references: IMMUTABLE
 Architecture baseline: UNCHANGED
 Review policy: ONE ROUND MAXIMUM
-Review status: ONE ROUND COMPLETE; blocking Task-11 findings fixed
-
+Review status: ONE ROUND COMPLETE; blocking Task-12 findings fixed
 ## Completed
-
-- Tasks 1–11
-
+- Tasks 1–12
 ## Current quality baseline
-
-- Vitest: 338 PASS
+- Vitest: 386 PASS
 - Reference tests: 2/2 PASS
-- Focused Task-11 tests: 39/39 PASS
-- Task-11 mapper/repository regression: 74/74 PASS
+- Focused Task-12 tests: 48/48 PASS
+- Work-package-C matrix: 95/95 PASS
+- Migration: atomic, deterministic and idempotent; V500 source unchanged
+- V500/V600 limits and SHA-256 fingerprint: PASS
+- No-Cloud-Sync contract: PASS
 - Chromium real IndexedDB: PASS
 - WebKit real IndexedDB: KNOWN_EXTERNAL_LIMITATION for Blob persistence only
 - WebKit limitation: 26.5 / revision 2336 / Playwright 1.62.1
@@ -30,9 +29,7 @@ Review status: ONE ROUND COMPLETE; blocking Task-11 findings fixed
 - Typecheck: PASS
 - npm run verify: PASS
 - git diff --check: PASS
-
 ## Execution rules
-
 - Read only the current task from the plan.
 - No repository onboarding.
 - Read only direct dependencies.

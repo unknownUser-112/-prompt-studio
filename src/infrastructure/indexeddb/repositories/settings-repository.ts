@@ -21,8 +21,8 @@ export class IndexedDbSettingsRepository implements SettingsRepository {
     this.records = new IndexedDbRecordStore(adapter, "Settings", "settings", isSettingsRecord);
   }
 
-  public getByKey: SettingsRepository["getByKey"] = (key) => this.records.get(key);
-  public list: SettingsRepository["list"] = () => this.records.list();
+  public getByKey: SettingsRepository["getByKey"] = (key, transaction) => this.records.get(key, transaction);
+  public list: SettingsRepository["list"] = (transaction) => this.records.list(transaction);
   public put: SettingsRepository["put"] = (record, transaction) => this.records.put(record, transaction);
   public delete: SettingsRepository["delete"] = (key, transaction) => this.records.delete(key, transaction);
 }
