@@ -4,7 +4,7 @@ Branch: codex/v600-phase1-foundation
 Last completed task: 15
 Next task: 16
 Work package: D
-Last commit: Pending before Task-16A.2 remediation commit
+Last commit: Pending before Project State V3 remediation commit
 Phase 2: LOCKED
 V500 references: IMMUTABLE
 Architecture baseline: UNCHANGED
@@ -13,7 +13,7 @@ Review status: Task 16A.2 ONE ROUND; two blocking findings fixed
 ## Completed
 - Tasks 1–15
 ## Current quality baseline
-- Vitest: 434 PASS
+- Vitest: 459 PASS
 - Reference tests: 2/2 PASS
 - Task-13 focused: 8/8 PASS
 - Task-14 focused: 30/30 PASS
@@ -32,9 +32,9 @@ Review status: Task 16A.2 ONE ROUND; two blocking findings fixed
 - git diff --check: PASS
 - Golden Master: UNCHANGED
 - Task 16 status: IN PROGRESS
-- Project State Migration: V1→V2 COMPLETE
+- Project State Migration: V1→V2→V3 COMPLETE
 - Baseline remediation: COMPLETE
-- Migration regression set: 112/112 PASS
+- V3 remediation regression set: 87/87 PASS
 - Historical revisions: IMMUTABLE
 ## Execution rules
 - Read only the current task from the plan.

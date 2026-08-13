@@ -12,7 +12,7 @@ import type { Project } from "../../domain/entities/project";
 import type { ProjectRevision } from "../../domain/entities/project-revision";
 import type { TrashEntry } from "../../domain/entities/trash-entry";
 import { createNewProject, duplicateProject } from "../../domain/entities/project-factory";
-import { migrateProjectStateV1ToV2 } from "../migrations/v600-project-state-v1-to-v2";
+import { migrateProjectStateToCurrent } from "../migrations/v600-project-state-v2-to-v3";
 import { mapProjectEntityToRecord, mapProjectRecordToEntity } from "../mappers/project-mapper";
 import { mapProjectRevisionEntityToRecord, mapProjectRevisionRecordToEntity } from "../mappers/project-revision-mapper";
 import { mapTrashEntryRecordToEntity } from "../mappers/trash-mapper";
@@ -434,7 +434,7 @@ export class ProjectService {
 }
 
 function projectWithMigratedState(project: Project): Project {
-  const state = migrateProjectStateV1ToV2(project.state);
+  const state = migrateProjectStateToCurrent(project.state);
   return state === project.state ? project : { ...project, state };
 }
 

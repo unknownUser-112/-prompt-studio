@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { migrateProjectStateV1ToV2 } from "../../../src/application/migrations/v600-project-state-v1-to-v2";
-import { createCanonicalProjectStateV2Values } from "../../../src/domain/entities/project-factory";
+import {
+  migrateProjectStateToCurrent,
+  migrateProjectStateV2ToV3,
+} from "../../../src/application/migrations/v600-project-state-v2-to-v3";
+import {
+  createCanonicalProjectStateV2Values,
+  createCanonicalProjectStateV3Values,
+} from "../../../src/domain/entities/project-factory";
 import type { DomainObject } from "../../../src/domain/entities/project";
 
 describe("ProjectState v1 to v2 migration", () => {
@@ -100,5 +107,53 @@ describe("ProjectState v1 to v2 migration", () => {
     };
 
     expect(migrateProjectStateV1ToV2(v2)).toBe(v2);
+  });
+
+  it("adds only missing editable style facts when migrating V2 to V3", () => {
+    const v2: DomainObject = {
+      schemaVersion: 2,
+      wizardStep: 6,
+      values: {
+        model: { behaviour: "modelBehaviour.user" },
+        custom: { untouched: true },
+      },
+      assetIds: ["asset-user"],
+    };
+
+    expect(migrateProjectStateV2ToV3(v2)).toEqual({
+      schemaVersion: 3,
+      wizardStep: 6,
+      values: {
+        model: { behaviour: "modelBehaviour.user" },
+        realism: { reference: "realism.reference" },
+        custom: { untouched: true },
+      },
+      assetIds: ["asset-user"],
+    });
+  });
+
+  it("chains V1 through V2 to V3 deterministically and leaves V3 identical", () => {
+    const v1: DomainObject = { schemaVersion: 1, values: { realism: { reference: "realism.user" } } };
+    const first = migrateProjectStateToCurrent(v1);
+    const second = migrateProjectStateToCurrent(v1);
+
+    expect(first).toMatchObject({
+      schemaVersion: 3,
+      values: {
+        camera: { framing: "framing.whole_person" },
+        model: { behaviour: "modelBehaviour.authentic_lifestyle" },
+        realism: { reference: "realism.user" },
+      },
+    });
+    expect(second).toEqual(first);
+    expect(migrateProjectStateToCurrent(first)).toBe(first);
+  });
+
+  it("keeps the complete V3 factory baseline semantic and free of prompt paragraphs", () => {
+    expect(createCanonicalProjectStateV3Values()).toMatchObject({
+      model: { behaviour: "modelBehaviour.authentic_lifestyle" },
+      realism: { reference: "realism.reference" },
+    });
+    expect(JSON.stringify(createCanonicalProjectStateV3Values())).not.toMatch(/[.!?]\s/u);
   });
 });

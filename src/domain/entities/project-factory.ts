@@ -63,6 +63,14 @@ export interface ProjectLightingBaselineValues extends DomainObject {
   readonly whiteBalance: string;
 }
 
+export interface ProjectModelBaselineValues extends DomainObject {
+  readonly behaviour: string;
+}
+
+export interface ProjectRealismBaselineValues extends DomainObject {
+  readonly reference: string;
+}
+
 export interface CanonicalProjectStateV2Values extends DomainObject {
   readonly camera: ProjectCameraBaselineValues;
   readonly character: ProjectCharacterBaselineValues;
@@ -72,7 +80,17 @@ export interface CanonicalProjectStateV2Values extends DomainObject {
   readonly lighting: ProjectLightingBaselineValues;
 }
 
+export interface CanonicalProjectStateV3Values extends CanonicalProjectStateV2Values {
+  readonly model: ProjectModelBaselineValues;
+  readonly realism: ProjectRealismBaselineValues;
+}
+
 export function createCanonicalProjectStateV2Values(): CanonicalProjectStateV2Values {
+  const { model: _model, realism: _realism, ...v2Values } = createCanonicalProjectStateV3Values();
+  return v2Values;
+}
+
+export function createCanonicalProjectStateV3Values(): CanonicalProjectStateV3Values {
   return {
     camera: {
       framing: "framing.whole_person",
@@ -122,6 +140,12 @@ export function createCanonicalProjectStateV2Values(): CanonicalProjectStateV2Va
       setup: "lighting.soft_side_window",
       whiteBalance: "whiteBalance.neutral",
     },
+    model: {
+      behaviour: "modelBehaviour.authentic_lifestyle",
+    },
+    realism: {
+      reference: "realism.reference",
+    },
   };
 }
 
@@ -134,9 +158,9 @@ export function createNewProject(_runtime: RuntimeEnvironment, _name = "Neues Pr
     revision: 0,
     name: _name,
     state: {
-      schemaVersion: 2,
+      schemaVersion: 3,
       wizardStep: 1,
-      values: createCanonicalProjectStateV2Values(),
+      values: createCanonicalProjectStateV3Values(),
       assetIds: [],
     },
     currentRevisionId: null,

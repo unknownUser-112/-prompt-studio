@@ -79,7 +79,7 @@ describe("serialized CreateNewProjectCommand", () => {
       id: "project-000001",
       currentRevisionId: "project-revision-000001",
       state: {
-        schemaVersion: 2,
+        schemaVersion: 3,
         wizardStep: 1,
         values: { camera: { framing: "framing.whole_person" } },
         assetIds: [],
@@ -228,7 +228,7 @@ describe("serialized CreateNewProjectCommand", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 2,
+          schemaVersion: 3,
           wizardStep: 4,
           values: {
             camera: { device: "user camera", framing: "framing.whole_person" },
@@ -238,8 +238,38 @@ describe("serialized CreateNewProjectCommand", () => {
         },
       },
     });
-    expect(second).toMatchObject({ ok: true, value: { state: { schemaVersion: 2 } } });
+    expect(second).toMatchObject({ ok: true, value: { state: { schemaVersion: 3 } } });
     expect(await value(harness.projects.getById(target.id))).toEqual(persistedAfterFirst);
+  });
+
+  it("atomically upgrades a V2 project with user style values to V3", async () => {
+    const harness = await createHarness("load-v2");
+    const target = {
+      ...harness.oldRecord,
+      id: "target-v2",
+      state: {
+        schemaVersion: 2,
+        values: { model: { behaviour: "modelBehaviour.user" }, custom: "kept" },
+      },
+    };
+    await value(harness.projects.put(target));
+
+    const result = await harness.service.load(target.id);
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        state: {
+          schemaVersion: 3,
+          values: {
+            model: { behaviour: "modelBehaviour.user" },
+            realism: { reference: "realism.reference" },
+            custom: "kept",
+          },
+        },
+      },
+    });
+    expect(await value(harness.projects.getById(target.id))).toMatchObject({ state: { schemaVersion: 3 } });
   });
 
   it("keeps the previous project active when a load flush fails", async () => {

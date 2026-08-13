@@ -27,7 +27,7 @@ import type { TrashRecord } from "../../../src/contracts/storage/records/trash";
 import type { StorageError } from "../../../src/contracts/storage/storage-errors";
 import type { StorageTransaction, StorageTransactionCoordinator } from "../../../src/contracts/storage/transaction";
 import {
-  createCanonicalProjectStateV2Values,
+  createCanonicalProjectStateV3Values,
   createNewProject,
 } from "../../../src/domain/entities/project-factory";
 import { createFixedRuntime } from "../../helpers/fixed-runtime";
@@ -45,9 +45,9 @@ describe("project application contracts", () => {
       revision: 0,
       name: "Neues Projekt",
       state: {
-        schemaVersion: 2,
+        schemaVersion: 3,
         wizardStep: 1,
-        values: createCanonicalProjectStateV2Values(),
+        values: createCanonicalProjectStateV3Values(),
         assetIds: [],
       },
       currentRevisionId: null,
@@ -76,6 +76,8 @@ describe("project application contracts", () => {
       },
       scene: { location: "location.apartment", area: "locationArea.apartment.modern_living_room_window" },
       lighting: { source: "lightSource.window", setup: "lighting.soft_side_window" },
+      model: { behaviour: "modelBehaviour.authentic_lifestyle" },
+      realism: { reference: "realism.reference" },
     });
   });
 
