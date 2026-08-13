@@ -78,7 +78,12 @@ describe("serialized CreateNewProjectCommand", () => {
     expect(created).toMatchObject({
       id: "project-000001",
       currentRevisionId: "project-revision-000001",
-      state: { schemaVersion: 1, wizardStep: 1, values: {}, assetIds: [] },
+      state: {
+        schemaVersion: 2,
+        wizardStep: 1,
+        values: { camera: { framing: "framing.whole_person" } },
+        assetIds: [],
+      },
     });
     expect(JSON.stringify(created)).not.toContain("old-secret");
     const revisions = await value(harness.revisions.listByProjectId("project-000001"));
@@ -200,6 +205,43 @@ describe("serialized CreateNewProjectCommand", () => {
     expect(order).toEqual(["flush", "commit", "ActiveProjectChanged"]);
   });
 
+  it("atomically upgrades a loaded V1 project once before returning it", async () => {
+    const harness = await createHarness("load-v1");
+    const target = {
+      ...harness.oldRecord,
+      id: "target-v1",
+      name: "V1 Target",
+      state: {
+        schemaVersion: 1,
+        wizardStep: 4,
+        values: { camera: { device: "user camera" }, custom: { nested: "kept" } },
+        assetIds: ["user-asset"],
+      },
+    };
+    await value(harness.projects.put(target));
+
+    const first = await harness.service.load(target.id);
+    const persistedAfterFirst = await value(harness.projects.getById(target.id));
+    const second = await harness.service.load(target.id);
+
+    expect(first).toMatchObject({
+      ok: true,
+      value: {
+        state: {
+          schemaVersion: 2,
+          wizardStep: 4,
+          values: {
+            camera: { device: "user camera", framing: "framing.whole_person" },
+            custom: { nested: "kept" },
+          },
+          assetIds: ["user-asset"],
+        },
+      },
+    });
+    expect(second).toMatchObject({ ok: true, value: { state: { schemaVersion: 2 } } });
+    expect(await value(harness.projects.getById(target.id))).toEqual(persistedAfterFirst);
+  });
+
   it("keeps the previous project active when a load flush fails", async () => {
     const autosave = {
       flush: async () => unavailable("load flush failed"),
@@ -225,12 +267,18 @@ describe("serialized CreateNewProjectCommand", () => {
       async () => unavailable("load commit failed"),
       autosave,
     );
-    const target = { ...harness.oldRecord, id: "target-project", name: "Target" };
+    const target = {
+      ...harness.oldRecord,
+      id: "target-project",
+      name: "Target",
+      state: { schemaVersion: 1, values: { custom: "confirmed-v1" } },
+    };
     await value(harness.projects.put(target));
 
     const result = await harness.service.load(target.id);
 
     expect(result).toMatchObject({ ok: false, error: { code: "storage/unavailable" } });
+    expect(await value(harness.projects.getById(target.id))).toEqual(target);
     expect(harness.service.getActiveProject()).toEqual(harness.oldProject);
     expect((await value(harness.settings.getByKey("global")))?.activeProjectId).toBe(harness.oldProject.id);
     expect(harness.events).toEqual([]);

@@ -26,7 +26,10 @@ import type { SettingsRecord } from "../../../src/contracts/storage/records/sett
 import type { TrashRecord } from "../../../src/contracts/storage/records/trash";
 import type { StorageError } from "../../../src/contracts/storage/storage-errors";
 import type { StorageTransaction, StorageTransactionCoordinator } from "../../../src/contracts/storage/transaction";
-import { createNewProject } from "../../../src/domain/entities/project-factory";
+import {
+  createCanonicalProjectStateV2Values,
+  createNewProject,
+} from "../../../src/domain/entities/project-factory";
 import { createFixedRuntime } from "../../helpers/fixed-runtime";
 
 describe("project application contracts", () => {
@@ -42,15 +45,37 @@ describe("project application contracts", () => {
       revision: 0,
       name: "Neues Projekt",
       state: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         wizardStep: 1,
-        values: {},
+        values: createCanonicalProjectStateV2Values(),
         assetIds: [],
       },
       currentRevisionId: null,
       autosavedAt: null,
       lifecycleStatus: "active",
       tagIds: [],
+    });
+  });
+
+  it("persists only editable baseline input facts in a new V2 project", () => {
+    const project = createNewProject(createFixedRuntime().runtime);
+    const values = project.state.values;
+
+    expect(values).toMatchObject({
+      camera: {
+        framing: "framing.whole_person",
+        device: "device.smartphone",
+        lens: "lens.smart_main",
+      },
+      character: { gender: "gender.woman", age: 21, heightCentimeters: 160 },
+      pose: { position: "pose.standing", gaze: "gaze.left_camera", expression: "expression.relaxed" },
+      garment: {
+        upper: { kind: "upperGarment.classic_tshirt", color: "color.white", material: "material.cotton" },
+        lower: { kind: "lowerGarment.high_waist_jeans", color: "color.denim_blue", material: "material.denim" },
+        footwear: { kind: "footwear.classic_sneakers", color: "color.white", material: "material.leather_textile" },
+      },
+      scene: { location: "location.apartment", area: "locationArea.apartment.modern_living_room_window" },
+      lighting: { source: "lightSource.window", setup: "lighting.soft_side_window" },
     });
   });
 

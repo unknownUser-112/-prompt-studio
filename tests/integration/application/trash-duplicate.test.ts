@@ -58,6 +58,75 @@ describe("project trash and duplication", () => {
     expect(harness.events.map((event) => event.type)).toEqual(["ProjectDuplicated"]);
   });
 
+  it("upgrades a V1 source before duplicating its complete V2 state", async () => {
+    const harness = await createHarness("duplicate-v1");
+    const v1 = {
+      ...projectRecord(),
+      id: "v1-source",
+      state: {
+        schemaVersion: 1,
+        values: { garment: { upper: "user upper" }, custom: "kept" },
+        assetIds: ["asset-v1"],
+      },
+    };
+    await value(harness.projects.put(v1));
+
+    const result = await harness.service.duplicate(v1.id);
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        id: "project-000001",
+        state: {
+          schemaVersion: 2,
+          values: {
+            garment: {
+              upper: "user upper",
+              lower: { kind: "lowerGarment.high_waist_jeans" },
+            },
+            custom: "kept",
+          },
+          assetIds: ["asset-v1"],
+        },
+      },
+    });
+    expect(await value(harness.projects.getById(v1.id))).toMatchObject({ state: { schemaVersion: 2 } });
+    const revision = (await value(harness.revisions.listByProjectId("project-000001")))[0];
+    expect(revision).toMatchObject({ reason: "duplicate", snapshot: { state: { schemaVersion: 2 } } });
+  });
+
+  it("synchronizes the active V1 source after its successful duplicate transaction upgrades it", async () => {
+    const harness = await createHarness("duplicate-active-v1");
+    const activeV1 = {
+      ...projectRecord(),
+      state: { schemaVersion: 1, values: { camera: { device: "device.user_camera" } } },
+    };
+    await value(harness.projects.put(activeV1));
+
+    const result = await harness.service.duplicate(activeV1.id);
+
+    expect(result.ok).toBe(true);
+    expect(harness.service.getActiveProject()).toMatchObject({
+      id: activeV1.id,
+      state: {
+        schemaVersion: 2,
+        values: { camera: { device: "device.user_camera", framing: "framing.whole_person" } },
+      },
+    });
+  });
+
+  it("keeps the active V1 source unchanged when its duplicate transaction fails", async () => {
+    const harness = await createHarness(
+      "duplicate-active-v1-failure",
+      { run: async () => unavailable("duplicate commit failed") },
+    );
+
+    const result = await harness.service.duplicate(harness.source.id);
+
+    expect(result).toMatchObject({ ok: false, error: { code: "storage/unavailable" } });
+    expect(harness.service.getActiveProject()).toEqual(harness.source);
+  });
+
   it("does not overwrite an existing project when a duplicate id collides", async () => {
     const harness = await createHarness("duplicate-collision");
     const collision = { ...harness.source, schemaVersion: 1 as const, id: "project-000001", name: "Must survive" };
@@ -115,6 +184,93 @@ describe("project trash and duplication", () => {
       }),
     ]);
     expect(harness.events.map((event) => event.type)).toEqual(["ProjectSoftDeleted", "ProjectRestored"]);
+  });
+
+  it("restores a V1 trash payload only as a current V2 project and V2 restore revision", async () => {
+    const harness = await createHarness("trash-v1-restore");
+    const v1Project = {
+      ...projectRecord(),
+      id: "trashed-v1",
+      state: { schemaVersion: 1, values: { scene: { location: "user place" } } },
+    };
+    await value(harness.trash.put({
+      id: "trash-v1",
+      schemaVersion: 1,
+      createdAt: "2026-08-11T10:00:00.000Z",
+      updatedAt: "2026-08-11T10:00:00.000Z",
+      revision: 0,
+      originalStore: "Projects",
+      entityType: "project",
+      originalId: v1Project.id,
+      payload: v1Project,
+      deletedAt: "2026-08-11T10:00:00.000Z",
+      restoreMetadata: {},
+    }));
+
+    const restored = await harness.service.restore("trash-v1");
+
+    expect(restored).toMatchObject({
+      ok: true,
+      value: {
+        id: "trashed-v1",
+        state: {
+          schemaVersion: 2,
+          values: {
+            scene: { location: "user place", area: "locationArea.apartment.modern_living_room_window" },
+          },
+        },
+      },
+    });
+    const revisions = await value(harness.revisions.listByProjectId("trashed-v1"));
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0]).toMatchObject({ reason: "restore", snapshot: { state: { schemaVersion: 2 } } });
+  });
+
+  it("restores a historical V1 revision into a new current V2 revision without changing history", async () => {
+    const harness = await createHarness("revision-v1-restore");
+    const historical = {
+      id: "historical-v1",
+      schemaVersion: 1 as const,
+      createdAt: "2026-08-10T09:00:00.000Z",
+      updatedAt: "2026-08-10T09:00:00.000Z",
+      revision: 0,
+      projectId: harness.source.id,
+      sequence: 5,
+      reason: "manual-save" as const,
+      parentRevisionId: null,
+      snapshot: {
+        name: "Historical name",
+        state: { schemaVersion: 1, values: { character: { age: 37 } }, assetIds: ["historic"] },
+        lifecycleStatus: "active",
+        tagIds: ["historic-tag"],
+      },
+      sha256: "historical-v1-hash",
+    };
+    await value(harness.revisions.put(historical));
+    const before = JSON.stringify(await value(harness.revisions.getById(historical.id)));
+
+    const result = await harness.service.restoreRevision(historical.id);
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        name: "Historical name",
+        state: {
+          schemaVersion: 2,
+          values: { character: { age: 37, gender: "gender.woman" } },
+          assetIds: ["historic"],
+        },
+        tagIds: ["historic-tag"],
+      },
+    });
+    expect(JSON.stringify(await value(harness.revisions.getById(historical.id)))).toBe(before);
+    const revisions = await value(harness.revisions.listByProjectId(harness.source.id));
+    expect(revisions).toHaveLength(2);
+    expect(revisions.find((entry) => entry.reason === "restore")).toMatchObject({
+      sequence: 6,
+      parentRevisionId: historical.id,
+      snapshot: { state: { schemaVersion: 2 } },
+    });
   });
 
   it("leaves the project outside trash and publishes nothing when soft-delete commit fails", async () => {

@@ -12,8 +12,9 @@ import type { Project } from "../../domain/entities/project";
 import type { ProjectRevision } from "../../domain/entities/project-revision";
 import type { TrashEntry } from "../../domain/entities/trash-entry";
 import { createNewProject, duplicateProject } from "../../domain/entities/project-factory";
+import { migrateProjectStateV1ToV2 } from "../migrations/v600-project-state-v1-to-v2";
 import { mapProjectEntityToRecord, mapProjectRecordToEntity } from "../mappers/project-mapper";
-import { mapProjectRevisionEntityToRecord } from "../mappers/project-revision-mapper";
+import { mapProjectRevisionEntityToRecord, mapProjectRevisionRecordToEntity } from "../mappers/project-revision-mapper";
 import { mapTrashEntryRecordToEntity } from "../mappers/trash-mapper";
 import { RevisionService } from "./revision-service";
 
@@ -113,23 +114,30 @@ export class ProjectService {
   }
 
   async duplicate(projectId: string): Promise<Result<Project, StorageError>> {
-    const sourceResult = await this.projects.getById(projectId);
-    if (!sourceResult.ok) return sourceResult;
-    if (sourceResult.value === null) return { ok: false, error: notFound("Projects", projectId) };
-    const source = mapProjectRecordToEntity(sourceResult.value);
-    if (!source.ok) return source;
-    const duplicate = duplicateProject(this.runtime, source.value);
-    const existingProject = await this.projects.getById(duplicate.id);
-    if (!existingProject.ok) return existingProject;
-    if (existingProject.value !== null) return { ok: false, error: conflict("Projects", duplicate.id) };
-    const revision = await this.revisionService.create(duplicate, "duplicate", 1, null);
-    const existingRevision = await this.revisions.getById(revision.id);
-    if (!existingRevision.ok) return existingRevision;
-    if (existingRevision.value !== null) return { ok: false, error: conflict("ProjectRevisions", revision.id) };
-    const persisted: Project = { ...duplicate, currentRevisionId: revision.id };
+    let migratedSource: Project | null = null;
     const result = await this.transactions.run(
       { stores: ["Projects", "ProjectRevisions"], mode: "readwrite" },
       async (transaction) => {
+        const sourceResult = await this.projects.getById(projectId, transaction);
+        if (!sourceResult.ok) return sourceResult;
+        if (sourceResult.value === null) return { ok: false as const, error: notFound("Projects", projectId) };
+        const source = mapProjectRecordToEntity(sourceResult.value);
+        if (!source.ok) return source;
+        const upgradedSource = projectWithMigratedState(source.value);
+        if (upgradedSource !== source.value) {
+          const sourcePut = await this.projects.put(mapProjectEntityToRecord(upgradedSource), transaction);
+          if (!sourcePut.ok) return sourcePut;
+          migratedSource = upgradedSource;
+        }
+        const duplicate = duplicateProject(this.runtime, upgradedSource);
+        const existingProject = await this.projects.getById(duplicate.id, transaction);
+        if (!existingProject.ok) return existingProject;
+        if (existingProject.value !== null) return { ok: false as const, error: conflict("Projects", duplicate.id) };
+        const revision = await this.revisionService.create(duplicate, "duplicate", 1, null);
+        const existingRevision = await this.revisions.getById(revision.id, transaction);
+        if (!existingRevision.ok) return existingRevision;
+        if (existingRevision.value !== null) return { ok: false as const, error: conflict("ProjectRevisions", revision.id) };
+        const persisted: Project = { ...duplicate, currentRevisionId: revision.id };
         const projectPut = await this.projects.put(mapProjectEntityToRecord(persisted), transaction);
         if (!projectPut.ok) return projectPut;
         const revisionPut = await this.revisions.put(mapProjectRevisionEntityToRecord(revision), transaction);
@@ -137,10 +145,13 @@ export class ProjectService {
       },
     );
     if (!result.ok) return result;
+    if (migratedSource !== null && this.activeProject?.id === projectId) {
+      this.activeProject = migratedSource;
+    }
     await this.publisher.publish({
       type: "ProjectDuplicated",
       occurredAt: this.runtime.clock.now(),
-      payload: { projectId: persisted.id, sourceProjectId: projectId },
+      payload: { projectId: result.value.id, sourceProjectId: projectId },
     });
     return result;
   }
@@ -214,34 +225,36 @@ export class ProjectService {
   }
 
   async restore(trashEntryId: string): Promise<Result<Project, StorageError>> {
-    const trashResult = await this.trash.getById(trashEntryId);
-    if (!trashResult.ok) return trashResult;
-    if (trashResult.value === null) return { ok: false, error: notFound("Trash", trashEntryId) };
-    if (trashResult.value.originalStore !== "Projects" || trashResult.value.entityType !== "project") {
-      return { ok: false, error: invalidStorageRecord("trash project", "original store or entity type") };
-    }
-    const project = mapProjectRecordToEntity(trashResult.value.payload);
-    if (!project.ok) return project;
-    const existing = await this.projects.getById(project.value.id);
-    if (!existing.ok) return existing;
-    if (existing.value !== null) return { ok: false, error: conflict("Projects", project.value.id) };
-    const prior = await this.revisions.listByProjectId(project.value.id);
-    if (!prior.ok) return prior;
-    const sequence = prior.value.reduce((maximum, entry) => Math.max(maximum, entry.sequence), 0) + 1;
-    const revision = await this.revisionService.create(project.value, "restore", sequence);
-    const existingRevision = await this.revisions.getById(revision.id);
-    if (!existingRevision.ok) return existingRevision;
-    if (existingRevision.value !== null) return { ok: false, error: conflict("ProjectRevisions", revision.id) };
-    const restored: Project = {
-      ...project.value,
-      lifecycleStatus: "active",
-      currentRevisionId: revision.id,
-      updatedAt: this.runtime.clock.now(),
-      revision: project.value.revision + 1,
-    };
+    const timestamp = this.runtime.clock.now();
     const result = await this.transactions.run(
       { stores: ["Projects", "ProjectRevisions", "Trash"], mode: "readwrite" },
       async (transaction) => {
+        const trashResult = await this.trash.getById(trashEntryId, transaction);
+        if (!trashResult.ok) return trashResult;
+        if (trashResult.value === null) return { ok: false as const, error: notFound("Trash", trashEntryId) };
+        if (trashResult.value.originalStore !== "Projects" || trashResult.value.entityType !== "project") {
+          return { ok: false as const, error: invalidStorageRecord("trash project", "original store or entity type") };
+        }
+        const project = mapProjectRecordToEntity(trashResult.value.payload);
+        if (!project.ok) return project;
+        const upgraded = projectWithMigratedState(project.value);
+        const existing = await this.projects.getById(upgraded.id, transaction);
+        if (!existing.ok) return existing;
+        if (existing.value !== null) return { ok: false as const, error: conflict("Projects", upgraded.id) };
+        const prior = await this.revisions.listByProjectId(upgraded.id, transaction);
+        if (!prior.ok) return prior;
+        const sequence = prior.value.reduce((maximum, entry) => Math.max(maximum, entry.sequence), 0) + 1;
+        const restorationBase: Project = {
+          ...upgraded,
+          lifecycleStatus: "active",
+          updatedAt: timestamp,
+          revision: upgraded.revision + 1,
+        };
+        const revision = await this.revisionService.create(restorationBase, "restore", sequence);
+        const existingRevision = await this.revisions.getById(revision.id, transaction);
+        if (!existingRevision.ok) return existingRevision;
+        if (existingRevision.value !== null) return { ok: false as const, error: conflict("ProjectRevisions", revision.id) };
+        const restored: Project = { ...restorationBase, currentRevisionId: revision.id };
         const revisionPut = await this.revisions.put(mapProjectRevisionEntityToRecord(revision), transaction);
         if (!revisionPut.ok) return revisionPut;
         const projectPut = await this.projects.put(mapProjectEntityToRecord(restored), transaction);
@@ -253,9 +266,58 @@ export class ProjectService {
     if (!result.ok) return result;
     await this.publisher.publish({
       type: "ProjectRestored",
-      occurredAt: this.runtime.clock.now(),
-      payload: { projectId: restored.id, trashEntryId },
+      occurredAt: timestamp,
+      payload: { projectId: result.value.id, trashEntryId },
     });
+    return result;
+  }
+
+  async restoreRevision(revisionId: string): Promise<Result<Project, StorageError>> {
+    const timestamp = this.runtime.clock.now();
+    const result = await this.transactions.run(
+      { stores: ["Projects", "ProjectRevisions"], mode: "readwrite" },
+      async (transaction) => {
+        const historicalResult = await this.revisions.getById(revisionId, transaction);
+        if (!historicalResult.ok) return historicalResult;
+        if (historicalResult.value === null) return { ok: false as const, error: notFound("ProjectRevisions", revisionId) };
+        const historical = mapProjectRevisionRecordToEntity(historicalResult.value);
+        if (!historical.ok) return historical;
+        const currentRecord = await this.projects.getById(historical.value.projectId, transaction);
+        if (!currentRecord.ok) return currentRecord;
+        if (currentRecord.value === null) {
+          return { ok: false as const, error: notFound("Projects", historical.value.projectId) };
+        }
+        const snapshot = historical.value.snapshot;
+        const snapshotProject = mapProjectRecordToEntity({
+          ...currentRecord.value,
+          name: snapshot.name,
+          state: snapshot.state,
+          lifecycleStatus: "active",
+          tagIds: snapshot.tagIds,
+        });
+        if (!snapshotProject.ok) return snapshotProject;
+        const upgraded = projectWithMigratedState(snapshotProject.value);
+        const prior = await this.revisions.listByProjectId(upgraded.id, transaction);
+        if (!prior.ok) return prior;
+        const sequence = prior.value.reduce((maximum, entry) => Math.max(maximum, entry.sequence), 0) + 1;
+        const restorationBase: Project = {
+          ...upgraded,
+          lifecycleStatus: "active",
+          updatedAt: timestamp,
+          revision: currentRecord.value.revision + 1,
+        };
+        const revision = await this.revisionService.create(restorationBase, "restore", sequence, historical.value.id);
+        const existingRevision = await this.revisions.getById(revision.id, transaction);
+        if (!existingRevision.ok) return existingRevision;
+        if (existingRevision.value !== null) return { ok: false as const, error: conflict("ProjectRevisions", revision.id) };
+        const restored: Project = { ...restorationBase, currentRevisionId: revision.id };
+        const revisionPut = await this.revisions.put(mapProjectRevisionEntityToRecord(revision), transaction);
+        if (!revisionPut.ok) return revisionPut;
+        const projectPut = await this.projects.put(mapProjectEntityToRecord(restored), transaction);
+        return projectPut.ok ? { ok: true as const, value: restored } : projectPut;
+      },
+    );
+    if (result.ok && this.activeProject?.id === result.value.id) this.activeProject = result.value;
     return result;
   }
 
@@ -268,26 +330,31 @@ export class ProjectService {
   private async performLoad(id: string): Promise<Result<Project, StorageError>> {
     const flushed = await this.autosave.flush("project-switch");
     if (!flushed.ok) return flushed;
-    const result = await this.projects.getById(id);
-    if (!result.ok) return result;
-    if (result.value === null) return { ok: false, error: notFound("Projects", id) };
-    const mapped = mapProjectRecordToEntity(result.value);
-    if (!mapped.ok) return mapped;
-    const settingsResult = await this.settings.getByKey("global");
-    if (!settingsResult.ok) return settingsResult;
-    if (settingsResult.value === null) return { ok: false, error: notFound("Settings", "global") };
     const timestamp = this.runtime.clock.now();
-    const updatedSettings = {
-      ...settingsResult.value,
-      activeProjectId: mapped.value.id,
-      updatedAt: timestamp,
-      revision: settingsResult.value.revision + 1,
-    };
     const committed = await this.transactions.run(
-      { stores: ["Settings"], mode: "readwrite" },
+      { stores: ["Projects", "Settings"], mode: "readwrite" },
       async (transaction) => {
+        const result = await this.projects.getById(id, transaction);
+        if (!result.ok) return result;
+        if (result.value === null) return { ok: false as const, error: notFound("Projects", id) };
+        const mapped = mapProjectRecordToEntity(result.value);
+        if (!mapped.ok) return mapped;
+        const upgraded = projectWithMigratedState(mapped.value);
+        const settingsResult = await this.settings.getByKey("global", transaction);
+        if (!settingsResult.ok) return settingsResult;
+        if (settingsResult.value === null) return { ok: false as const, error: notFound("Settings", "global") };
+        if (upgraded !== mapped.value) {
+          const projectPut = await this.projects.put(mapProjectEntityToRecord(upgraded), transaction);
+          if (!projectPut.ok) return projectPut;
+        }
+        const updatedSettings = {
+          ...settingsResult.value,
+          activeProjectId: upgraded.id,
+          updatedAt: timestamp,
+          revision: settingsResult.value.revision + 1,
+        };
         const put = await this.settings.put(updatedSettings, transaction);
-        return put.ok ? { ok: true as const, value: mapped.value } : put;
+        return put.ok ? { ok: true as const, value: upgraded } : put;
       },
     );
     if (!committed.ok) return committed;
@@ -364,6 +431,11 @@ export class ProjectService {
     if (persisted.ok && this.activeProject?.id === projectId) this.activeProject = updatedProject;
     return persisted;
   }
+}
+
+function projectWithMigratedState(project: Project): Project {
+  const state = migrateProjectStateV1ToV2(project.state);
+  return state === project.state ? project : { ...project, state };
 }
 
 const noAutosave: ProjectAutosaveControl = {

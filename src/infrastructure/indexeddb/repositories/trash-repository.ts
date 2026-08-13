@@ -11,7 +11,7 @@ export class IndexedDbTrashRepository implements TrashRepository {
     this.records = new IndexedDbRecordStore(adapter, "Trash", "trash", isTrashRecord);
   }
 
-  public getById: TrashRepository["getById"] = (id) => this.records.get(id);
+  public getById: TrashRepository["getById"] = (id, transaction) => this.records.get(id, transaction);
   public list: TrashRepository["list"] = () => this.records.list();
   public put: TrashRepository["put"] = (record, transaction) => this.records.put(record, transaction);
   public delete: TrashRepository["delete"] = (id, transaction) => this.records.delete(id, transaction);
