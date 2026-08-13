@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { adaptiveRealismProvider } from "../../../../src/plugins/adaptive-realism/rules";
+import { adaptiveRealismSection } from "../../../../src/plugins/adaptive-realism/sections";
 import { materialPhysicsProvider } from "../../../../src/plugins/material-physics/rules";
 import { materialPhysicsSection } from "../../../../src/plugins/material-physics/sections";
 import { ConstraintEngine } from "../../../../src/domain/engines/constraint-engine";
@@ -11,6 +12,10 @@ const resolve = (input: unknown) => new ConstraintEngine({ runtime: createFixedR
 const resolveMaterials = (input: unknown, reversed = false) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
   input,
   reversed ? [adaptiveRealismProvider, materialPhysicsProvider] : [materialPhysicsProvider, adaptiveRealismProvider],
+);
+const resolveAdaptive = (input: unknown, reversed = false) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+  input,
+  reversed ? [materialPhysicsProvider, adaptiveRealismProvider] : [adaptiveRealismProvider, materialPhysicsProvider],
 );
 
 describe("adaptive realism and material physics plugins", () => {
@@ -147,5 +152,49 @@ describe("adaptive realism and material physics plugins", () => {
       .resolve({ camera: { device: "device.smartphone" }, pose: { position: "pose.standing" } }, [adaptiveRealismProvider]);
 
     expect(materialPhysicsSection.provide(stateWithoutMaterialRules).some(({ slotId }) => slotId === "material-physics-b-context")).toBe(false);
+  });
+
+  it("derives the baseline capture appearance from exact skin, camera, and realism facts", async () => {
+    const input = {
+      camera: { photoLook: "photoLook.natural", style: "style.authentic_lifestyle" },
+      character: { skinTone: "skinTone.fair_warm" },
+      realism: { reference: "realism.standard" },
+    };
+
+    const state = await resolveAdaptive(input);
+    const trace = state.trace.entries.find(({ path }) => path === "captureAppearance");
+
+    expect(state.values.captureAppearance).toEqual({
+      photographicCharacter: "style.authentic_lifestyle",
+      photoLook: "photoLook.natural",
+      realismReference: "realism.standard",
+      skinTone: "skinTone.fair_warm",
+    });
+    expect(trace).toMatchObject({
+      id: "captureAppearance:adaptive-realism.capture-appearance",
+      ruleId: "adaptive-realism.capture-appearance",
+      sourceFields: ["camera.photoLook", "camera.style", "character.skinTone", "realism.reference"],
+    });
+  });
+
+  it("uses only present capture inputs and stays deterministic across provider order", async () => {
+    const input = { camera: { photoLook: "photoLook.natural" }, character: { skinTone: "skinTone.fair_warm" } };
+
+    const normal = await resolveAdaptive(input);
+    const reversed = await resolveAdaptive(input, true);
+
+    expect(normal.values.captureAppearance).toEqual({
+      photoLook: "photoLook.natural",
+      skinTone: "skinTone.fair_warm",
+    });
+    expect(normal.trace.entries[0]).toMatchObject({ sourceFields: ["camera.photoLook", "character.skinTone"] });
+    expect(reversed).toEqual(normal);
+  });
+
+  it("does not let the adaptive-realism section derive a missing capture appearance", async () => {
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() })
+      .resolve({ realism: { reference: "realism.standard" } }, [adaptiveRealismProvider]);
+
+    expect(adaptiveRealismSection.provide(state).some(({ slotId }) => slotId === "adaptive-realism-b-capture")).toBe(false);
   });
 });
