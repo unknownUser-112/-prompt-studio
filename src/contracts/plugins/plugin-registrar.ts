@@ -1,4 +1,6 @@
 import type { ConstraintProvider } from "../../domain/contracts/constraints/provider";
+import type { PromptSectionDraft } from "../../domain/contracts/prompt/providers";
+import type { ResolvedState } from "../../domain/contracts/resolved-state/resolved-state";
 
 export type CapabilityId = string;
 
@@ -9,7 +11,7 @@ export interface ConstraintContribution {
 
 export interface PromptSectionProvider {
   readonly id: string;
-  provide(): string;
+  provide(state: ResolvedState): readonly PromptSectionDraft[];
 }
 
 export interface ProfileLayoutContribution {

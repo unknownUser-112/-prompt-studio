@@ -1,2 +1,3 @@
 import type { PromptSectionProvider } from "../../contracts/plugins/plugin-registrar";
-export const garmentSection: PromptSectionProvider = { id: "garment", provide: () => "Garment" };
+import { createResolvedSectionDraft } from "../../domain/contracts/prompt/providers";
+export const garmentSection: PromptSectionProvider = { id: "garment", provide: (state) => [createResolvedSectionDraft(state, "garment", "Garment")] };
