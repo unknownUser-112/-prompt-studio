@@ -19,12 +19,25 @@ export interface ResolvedState {
   readonly stateHash: string;
 }
 
-export interface ResolvedStateAssignment {
+interface ResolvedStateAssignmentFields {
   readonly path: string;
-  readonly sourceField: string;
   readonly rule: ConstraintRule;
   readonly value: DomainValue;
 }
+
+interface SingleSourceResolvedStateAssignment {
+  readonly sourceField: string;
+  readonly sourceFields?: never;
+}
+
+interface MultiSourceResolvedStateAssignment {
+  readonly sourceField?: never;
+  readonly sourceFields: readonly [string, string, ...string[]];
+}
+
+export type ResolvedStateAssignment = ResolvedStateAssignmentFields & (
+  SingleSourceResolvedStateAssignment | MultiSourceResolvedStateAssignment
+);
 
 export interface ResolvedStateBuilder {
   normalizeFacts(input: unknown): NormalizedFacts;

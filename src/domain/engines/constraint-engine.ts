@@ -60,21 +60,58 @@ function applyAssignment(
   facts: DomainObject,
   stateBuilder: ResolvedStateBuilder,
 ): void {
-  if (stateBuilder.readFact({ values: facts }, assignment.sourceField) === undefined) {
-    throw new Error(`Rule ${rule.id} references an unknown source fact: ${assignment.sourceField}`);
+  const normalizedAssignment = normalizeAssignmentSources(assignment, rule);
+  for (const sourceField of assignmentSourceFields(normalizedAssignment)) {
+    if (stateBuilder.readFact({ values: facts }, sourceField) === undefined) {
+      throw new Error(`Rule ${rule.id} references an unknown source fact: ${sourceField}`);
+    }
   }
 
-  const existing = assignments.get(assignment.path);
-  const relatedPath = [...assignments.keys()].find((path) => path !== assignment.path && pathsOverlap(path, assignment.path));
+  const existing = assignments.get(normalizedAssignment.path);
+  const relatedPath = [...assignments.keys()].find((path) => path !== normalizedAssignment.path && pathsOverlap(path, normalizedAssignment.path));
   if (relatedPath !== undefined) {
-    throw new Error(`Resolved path conflict: ${relatedPath} and ${assignment.path}`);
+    throw new Error(`Resolved path conflict: ${relatedPath} and ${normalizedAssignment.path}`);
   }
   if (existing !== undefined && rule.conflictStrategy === "reject") {
-    throw new Error(`Rule conflict at ${assignment.path}: ${existing.rule.id} and ${rule.id}`);
+    throw new Error(`Rule conflict at ${normalizedAssignment.path}: ${existing.rule.id} and ${rule.id}`);
   }
   if (existing !== undefined && rule.conflictStrategy === "preserve") return;
 
-  assignments.set(assignment.path, { ...assignment, rule });
+  assignments.set(normalizedAssignment.path, resolvedAssignment(normalizedAssignment, rule));
+}
+
+function normalizeAssignmentSources(assignment: ConstraintAssignment, rule: ConstraintRule): ConstraintAssignment {
+  const sourceField = assignment.sourceField;
+  const sourceFields = assignment.sourceFields;
+  if (typeof sourceField === "string") {
+    if (sourceFields !== undefined) {
+      throw new Error(`Rule ${rule.id} must declare exactly one source declaration`);
+    }
+    return assignment;
+  }
+  if (sourceFields === undefined) {
+    throw new Error(`Rule ${rule.id} must declare exactly one source declaration`);
+  }
+  if (sourceFields.length < 2) {
+    throw new Error(`Rule ${rule.id} must declare at least two source fields`);
+  }
+
+  const canonical = [...sourceFields].sort(compareCodeUnits);
+  if (new Set(canonical).size !== canonical.length) {
+    throw new Error(`Rule ${rule.id} declares a duplicate source field`);
+  }
+  return { ...assignment, sourceFields: canonical as [string, string, ...string[]] };
+}
+
+function assignmentSourceFields(assignment: ConstraintAssignment): readonly string[] {
+  return assignment.sourceFields ?? [assignment.sourceField];
+}
+
+function resolvedAssignment(assignment: ConstraintAssignment, rule: ConstraintRule): ResolvedStateAssignment {
+  if (assignment.sourceFields !== undefined) {
+    return { path: assignment.path, rule, sourceFields: assignment.sourceFields, value: assignment.value };
+  }
+  return { path: assignment.path, rule, sourceField: assignment.sourceField, value: assignment.value };
 }
 
 function valuesFrom(assignments: ReadonlyMap<string, ResolvedStateAssignment>, stateBuilder: ResolvedStateBuilder) {

@@ -5,17 +5,22 @@ export function createResolutionTrace(assignments: readonly ResolvedStateAssignm
   const entries: ResolutionTraceEntry[] = assignments
     .slice()
     .sort((left, right) => compareCodeUnits(left.path, right.path) || compareCodeUnits(left.rule.id, right.rule.id))
-    .map((assignment) => ({
-      id: `${assignment.path}:${assignment.rule.id}`,
-      path: assignment.path,
-      pluginVersion: assignment.rule.version,
-      ruleId: assignment.rule.id,
-      ruleVersion: assignment.rule.version,
-      sourceField: assignment.sourceField,
-      sourcePluginId: assignment.rule.sourcePluginId,
-    }));
+    .map(toTraceEntry);
 
   return { entries };
+}
+
+function toTraceEntry(assignment: ResolvedStateAssignment): ResolutionTraceEntry {
+  const fields = {
+    id: `${assignment.path}:${assignment.rule.id}`,
+    path: assignment.path,
+    pluginVersion: assignment.rule.version,
+    ruleId: assignment.rule.id,
+    ruleVersion: assignment.rule.version,
+    sourcePluginId: assignment.rule.sourcePluginId,
+  };
+  if (assignment.sourceFields !== undefined) return { ...fields, sourceFields: assignment.sourceFields };
+  return { ...fields, sourceField: assignment.sourceField };
 }
 
 function compareCodeUnits(left: string, right: string): number {

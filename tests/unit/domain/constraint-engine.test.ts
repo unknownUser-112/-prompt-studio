@@ -114,4 +114,45 @@ describe("ConstraintEngine", () => {
       /Resolved path conflict: subject and subject\.name/u,
     );
   });
+
+  it("accepts, validates, and canonically traces multiple source facts", async () => {
+    const engine = new ConstraintEngine({
+      runtime: createFixedRuntime().runtime,
+      stateBuilder: createResolvedStateBuilder(),
+    });
+    const derived = provider("derived", () => [{
+      id: "derived.context", version: "1.0.0", sourcePluginId: "derived", phase: "constraints", conflictStrategy: "reject", description: "Combines supplied facts.",
+      evaluate: () => [{
+        path: "derived.context",
+        sourceFields: ["pose.position", "camera.device", "garment.material"],
+        value: "combined",
+      }],
+    }]);
+    const input = { camera: { device: "phone" }, garment: { material: "denim" }, pose: { position: "standing" } };
+
+    const state = await engine.resolve(input, [derived]);
+
+    expect(state.trace.entries).toEqual([expect.objectContaining({
+      id: "derived.context:derived.context",
+      sourceFields: ["camera.device", "garment.material", "pose.position"],
+    })]);
+    expect(state.trace.entries[0]).not.toHaveProperty("sourceField");
+  });
+
+  it("rejects invalid multi-source declarations and unknown source facts", async () => {
+    const engine = new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() });
+    const resolveAssignment = (assignment: unknown) => engine.resolve(
+      { camera: { device: "phone" }, pose: { position: "standing" } },
+      [provider("invalid", () => [{
+        id: "invalid.sources", version: "1.0.0", sourcePluginId: "invalid", phase: "constraints", conflictStrategy: "reject", description: "Invalid source declaration.",
+        evaluate: () => [assignment] as never,
+      }])],
+    );
+
+    await expect(resolveAssignment({ path: "derived.value", sourceFields: [], value: "x" })).rejects.toThrow(/at least two source fields/u);
+    await expect(resolveAssignment({ path: "derived.value", sourceFields: ["camera.device"], value: "x" })).rejects.toThrow(/at least two source fields/u);
+    await expect(resolveAssignment({ path: "derived.value", sourceFields: ["camera.device", "camera.device"], value: "x" })).rejects.toThrow(/duplicate source field/u);
+    await expect(resolveAssignment({ path: "derived.value", sourceField: "camera.device", sourceFields: ["camera.device", "pose.position"], value: "x" })).rejects.toThrow(/exactly one source declaration/u);
+    await expect(resolveAssignment({ path: "derived.value", sourceFields: ["camera.device", "lighting.source"], value: "x" })).rejects.toThrow(/unknown source fact: lighting\.source/u);
+  });
 });

@@ -4,11 +4,24 @@ import type { ConstraintPhase } from "./phases";
 
 export type ConflictStrategy = "reject" | "replace" | "preserve";
 
-export interface ConstraintAssignment {
+interface ConstraintAssignmentFields {
   readonly path: string;
-  readonly sourceField: string;
   readonly value: DomainValue;
 }
+
+interface SingleSourceConstraintAssignment {
+  readonly sourceField: string;
+  readonly sourceFields?: never;
+}
+
+interface MultiSourceConstraintAssignment {
+  readonly sourceField?: never;
+  readonly sourceFields: readonly [string, string, ...string[]];
+}
+
+export type ConstraintAssignment = ConstraintAssignmentFields & (
+  SingleSourceConstraintAssignment | MultiSourceConstraintAssignment
+);
 
 export interface ConstraintRuleContext {
   readonly facts: NormalizedFacts;

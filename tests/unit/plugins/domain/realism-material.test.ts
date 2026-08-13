@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import { adaptiveRealismProvider } from "../../../../src/plugins/adaptive-realism/rules";
 import { materialPhysicsProvider } from "../../../../src/plugins/material-physics/rules";
+import { materialPhysicsSection } from "../../../../src/plugins/material-physics/sections";
 import { ConstraintEngine } from "../../../../src/domain/engines/constraint-engine";
 import { createResolvedStateBuilder } from "../../../../src/domain/engines/resolved-state-builder";
 import { createFixedRuntime } from "../../../helpers/fixed-runtime";
 
 const resolve = (input: unknown) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(input, [materialPhysicsProvider, adaptiveRealismProvider]);
+const resolveMaterials = (input: unknown, reversed = false) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+  input,
+  reversed ? [adaptiveRealismProvider, materialPhysicsProvider] : [materialPhysicsProvider, adaptiveRealismProvider],
+);
 
 describe("adaptive realism and material physics plugins", () => {
   it("preserves a requested realism reference and derives fabric physics", async () => {
@@ -17,5 +22,130 @@ describe("adaptive realism and material physics plugins", () => {
       material: { fabric: "Denim", physics: "structured natural folds" },
     });
     expect(new Set(state.trace.entries.map((entry) => entry.ruleId))).toEqual(new Set(["adaptive-realism.reference", "material-physics.material", "material-physics.denim-physics"]));
+  });
+
+  it("projects upper, lower, and footwear material facts with stable traces", async () => {
+    const input = {
+      garment: {
+        upper: { material: "material.cotton" },
+        lower: { material: "material.denim" },
+        footwear: { material: "material.leather_textile" },
+      },
+    };
+
+    const state = await resolveMaterials(input);
+
+    expect(state.values).toMatchObject({
+      material: {
+        footwear: "material.leather_textile",
+        lower: "material.denim",
+        upper: "material.cotton",
+      },
+    });
+    expect(state.trace.entries
+      .filter(({ path }) => ["material.footwear", "material.lower", "material.upper"].includes(path))
+      .map(({ id, path, ruleId, sourceField }) => ({ id, path, ruleId, sourceField }))).toEqual([
+      {
+        id: "material.footwear:material-physics.footwear-material",
+        path: "material.footwear",
+        ruleId: "material-physics.footwear-material",
+        sourceField: "garment.footwear.material",
+      },
+      {
+        id: "material.lower:material-physics.lower-material",
+        path: "material.lower",
+        ruleId: "material-physics.lower-material",
+        sourceField: "garment.lower.material",
+      },
+      {
+        id: "material.upper:material-physics.upper-material",
+        path: "material.upper",
+        ruleId: "material-physics.upper-material",
+        sourceField: "garment.upper.material",
+      },
+    ]);
+  });
+
+  it("does not invent missing materials and stays deterministic across provider order", async () => {
+    const input = { garment: { upper: { material: "material.cotton" } } };
+
+    const normal = await resolveMaterials(input);
+    const reversed = await resolveMaterials(input, true);
+
+    expect(normal.values).toEqual({ material: { upper: "material.cotton" } });
+    expect(reversed).toEqual(normal);
+  });
+
+  it("derives one traceable adaptive physical context from the exact baseline inputs", async () => {
+    const input = {
+      camera: { device: "device.smartphone", lens: "lens.smart_main", photoLook: "photoLook.natural", style: "style.authentic_lifestyle" },
+      character: { hair: { style: "hairStyle.loose", texture: "hairTexture.natural_waves" } },
+      garment: {
+        upper: { material: "material.cotton" },
+        lower: { material: "material.denim" },
+        footwear: { material: "material.leather_textile" },
+      },
+      lighting: { source: "lightSource.window", setup: "lighting.soft_side_window", whiteBalance: "whiteBalance.neutral" },
+      pose: { position: "pose.standing" },
+    };
+
+    const state = await resolveMaterials(input);
+    const trace = state.trace.entries.find(({ path }) => path === "material.adaptivePhysicalContext");
+
+    expect(state.values.material).toMatchObject({
+      adaptivePhysicalContext: {
+        camera: input.camera,
+        hair: input.character.hair,
+        lighting: input.lighting,
+        materials: {
+          footwear: "material.leather_textile",
+          lower: "material.denim",
+          upper: "material.cotton",
+        },
+        pose: input.pose,
+      },
+    });
+    expect(trace).toMatchObject({
+      id: "material.adaptivePhysicalContext:material-physics.adaptive-physical-context",
+      ruleId: "material-physics.adaptive-physical-context",
+      sourceFields: [
+        "camera.device",
+        "camera.lens",
+        "camera.photoLook",
+        "camera.style",
+        "character.hair.style",
+        "character.hair.texture",
+        "garment.footwear.material",
+        "garment.lower.material",
+        "garment.upper.material",
+        "lighting.setup",
+        "lighting.source",
+        "lighting.whiteBalance",
+        "pose.position",
+      ],
+    });
+  });
+
+  it("uses only present optional inputs and remains deterministic across provider order", async () => {
+    const input = { camera: { device: "device.smartphone" }, pose: { position: "pose.standing" } };
+
+    const normal = await resolveMaterials(input);
+    const reversed = await resolveMaterials(input, true);
+
+    expect(normal.values.material).toEqual({
+      adaptivePhysicalContext: {
+        camera: { device: "device.smartphone" },
+        pose: { position: "pose.standing" },
+      },
+    });
+    expect(normal.trace.entries[0]).toMatchObject({ sourceFields: ["camera.device", "pose.position"] });
+    expect(reversed).toEqual(normal);
+  });
+
+  it("does not let the section provider derive a missing adaptive physical context", async () => {
+    const stateWithoutMaterialRules = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() })
+      .resolve({ camera: { device: "device.smartphone" }, pose: { position: "pose.standing" } }, [adaptiveRealismProvider]);
+
+    expect(materialPhysicsSection.provide(stateWithoutMaterialRules).some(({ slotId }) => slotId === "material-physics-b-context")).toBe(false);
   });
 });
