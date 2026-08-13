@@ -79,7 +79,7 @@ describe("serialized CreateNewProjectCommand", () => {
       id: "project-000001",
       currentRevisionId: "project-revision-000001",
       state: {
-        schemaVersion: 4,
+        schemaVersion: 5,
         wizardStep: 1,
         values: { camera: { framing: "framing.whole_person" } },
         assetIds: [],
@@ -228,7 +228,7 @@ describe("serialized CreateNewProjectCommand", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           wizardStep: 4,
           values: {
             camera: { device: "user camera", framing: "framing.whole_person" },
@@ -238,7 +238,7 @@ describe("serialized CreateNewProjectCommand", () => {
         },
       },
     });
-    expect(second).toMatchObject({ ok: true, value: { state: { schemaVersion: 4 } } });
+    expect(second).toMatchObject({ ok: true, value: { state: { schemaVersion: 5 } } });
     expect(await value(harness.projects.getById(target.id))).toEqual(persistedAfterFirst);
   });
 
@@ -260,7 +260,7 @@ describe("serialized CreateNewProjectCommand", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: {
             model: { behaviour: "modelBehaviour.user" },
             realism: { reference: "realism.reference" },
@@ -269,7 +269,7 @@ describe("serialized CreateNewProjectCommand", () => {
         },
       },
     });
-    expect(await value(harness.projects.getById(target.id))).toMatchObject({ state: { schemaVersion: 4 } });
+    expect(await value(harness.projects.getById(target.id))).toMatchObject({ state: { schemaVersion: 5 } });
   });
 
   it("atomically upgrades a V3 project with user face values to V4", async () => {
@@ -290,7 +290,7 @@ describe("serialized CreateNewProjectCommand", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: {
             character: {
               faceShape: "faceShape.user",

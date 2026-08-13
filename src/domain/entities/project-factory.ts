@@ -103,6 +103,21 @@ export interface CanonicalProjectStateV4Values extends DomainObject {
   readonly realism: ProjectRealismBaselineValues;
 }
 
+export interface ProjectSceneV5BaselineValues extends ProjectSceneBaselineValues {
+  readonly additionalPerson: boolean;
+}
+
+export interface CanonicalProjectStateV5Values extends DomainObject {
+  readonly camera: ProjectCameraBaselineValues;
+  readonly character: ProjectCharacterV4BaselineValues;
+  readonly pose: ProjectPoseBaselineValues;
+  readonly garment: ProjectGarmentBaselineValues;
+  readonly scene: ProjectSceneV5BaselineValues;
+  readonly lighting: ProjectLightingBaselineValues;
+  readonly model: ProjectModelBaselineValues;
+  readonly realism: ProjectRealismBaselineValues;
+}
+
 export function createCanonicalProjectStateV2Values(): CanonicalProjectStateV2Values {
   const { model: _model, realism: _realism, ...v2Values } = createCanonicalProjectStateV3Values();
   return v2Values;
@@ -121,6 +136,12 @@ export function createCanonicalProjectStateV3Values(): CanonicalProjectStateV3Va
 }
 
 export function createCanonicalProjectStateV4Values(): CanonicalProjectStateV4Values {
+  const v5Values = createCanonicalProjectStateV5Values();
+  const { additionalPerson: _additionalPerson, ...v4Scene } = v5Values.scene;
+  return { ...v5Values, scene: v4Scene };
+}
+
+export function createCanonicalProjectStateV5Values(): CanonicalProjectStateV5Values {
   return {
     camera: {
       framing: "framing.whole_person",
@@ -168,6 +189,7 @@ export function createCanonicalProjectStateV4Values(): CanonicalProjectStateV4Va
       mood: "mood.calm_authentic",
       atmosphere: "atmosphere.subtle_lived_in",
       surfaceCondition: "surfaceCondition.dry",
+      additionalPerson: false,
     },
     lighting: {
       source: "lightSource.window",
@@ -192,9 +214,9 @@ export function createNewProject(_runtime: RuntimeEnvironment, _name = "Neues Pr
     revision: 0,
     name: _name,
     state: {
-      schemaVersion: 4,
+      schemaVersion: 5,
       wizardStep: 1,
-      values: createCanonicalProjectStateV4Values(),
+      values: createCanonicalProjectStateV5Values(),
       assetIds: [],
     },
     currentRevisionId: null,

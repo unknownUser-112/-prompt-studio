@@ -3,15 +3,21 @@ import { describe, expect, it } from "vitest";
 import { migrateProjectStateV1ToV2 } from "../../../src/application/migrations/v600-project-state-v1-to-v2";
 import { migrateProjectStateV2ToV3 } from "../../../src/application/migrations/v600-project-state-v2-to-v3";
 import {
-  migrateProjectStateToCurrent,
   migrateProjectStateV3ToV4,
 } from "../../../src/application/migrations/v600-project-state-v3-to-v4";
+import {
+  migrateProjectStateToCurrent,
+  migrateProjectStateV4ToV5,
+} from "../../../src/application/migrations/v600-project-state-v4-to-v5";
 import {
   createCanonicalProjectStateV2Values,
   createCanonicalProjectStateV3Values,
   createCanonicalProjectStateV4Values,
+  createCanonicalProjectStateV5Values,
+  createNewProject,
 } from "../../../src/domain/entities/project-factory";
 import type { DomainObject } from "../../../src/domain/entities/project";
+import { createFixedRuntime } from "../../helpers/fixed-runtime";
 
 describe("ProjectState v1 to v2 migration", () => {
   it("deeply adds only missing canonical baseline facts and preserves user values", () => {
@@ -184,14 +190,32 @@ describe("ProjectState v1 to v2 migration", () => {
     });
   });
 
-  it("chains V1 and V2 through V4 deterministically and leaves V4 identical", () => {
+  it("adds only a missing editable additional-person fact when migrating V4 to V5", () => {
+    const missing: DomainObject = { schemaVersion: 4, values: { scene: { location: "location.user" }, custom: "kept" } };
+    const explicitFalse: DomainObject = { schemaVersion: 4, values: { scene: { additionalPerson: false } } };
+    const explicitTrue: DomainObject = { schemaVersion: 4, values: { scene: { additionalPerson: true } } };
+
+    const migratedMissing = migrateProjectStateV4ToV5(missing);
+    expect(migratedMissing).toEqual({
+      schemaVersion: 5,
+      values: { scene: { location: "location.user", additionalPerson: false }, custom: "kept" },
+    });
+    expect(migrateProjectStateV4ToV5(explicitFalse)).toEqual({ schemaVersion: 5, values: { scene: { additionalPerson: false } } });
+    expect(migrateProjectStateV4ToV5(explicitTrue)).toEqual({ schemaVersion: 5, values: { scene: { additionalPerson: true } } });
+    expect(migrateProjectStateV4ToV5(migratedMissing)).toBe(migratedMissing);
+    expect(migrateProjectStateV4ToV5(missing)).toEqual(migrateProjectStateV4ToV5(missing));
+  });
+
+  it("chains V1 through V4 to V5 deterministically and leaves V5 identical", () => {
     for (const input of [
       { schemaVersion: 1, values: { character: { faceShape: "faceShape.user" } } },
       { schemaVersion: 2, values: { character: { eyeShape: "eyeShape.user" } } },
+      { schemaVersion: 3, values: { character: { noseShape: "noseShape.user" } } },
+      { schemaVersion: 4, values: { scene: { additionalPerson: true } } },
     ] satisfies DomainObject[]) {
       const first = migrateProjectStateToCurrent(input);
       const second = migrateProjectStateToCurrent(input);
-      expect(first).toMatchObject({ schemaVersion: 4, values: { character: { faceAge: "faceAge.adult" } } });
+      expect(first).toMatchObject({ schemaVersion: 5, values: { scene: { additionalPerson: expect.any(Boolean) } } });
       expect(second).toEqual(first);
       expect(migrateProjectStateToCurrent(first)).toBe(first);
     }
@@ -207,5 +231,21 @@ describe("ProjectState v1 to v2 migration", () => {
       },
     });
     expect(JSON.stringify(createCanonicalProjectStateV4Values())).not.toMatch(/[.!?]\s/u);
+  });
+
+  it("creates new projects directly with the editable V5 additional-person baseline", () => {
+    const project = createNewProject(createFixedRuntime().runtime);
+
+    expect(project.state).toMatchObject({
+      schemaVersion: 5,
+      values: { scene: { additionalPerson: false } },
+    });
+    expect(JSON.stringify(project.state.values)).not.toContain("Keine zusätzliche Person");
+    expect(JSON.stringify(project.state.values)).not.toContain("Do not add any additional people");
+  });
+
+  it("keeps the V5 factory baseline semantic and free of prompt paragraphs", () => {
+    expect(createCanonicalProjectStateV5Values()).toMatchObject({ scene: { additionalPerson: false } });
+    expect(JSON.stringify(createCanonicalProjectStateV5Values())).not.toMatch(/[.!?]\s/u);
   });
 });

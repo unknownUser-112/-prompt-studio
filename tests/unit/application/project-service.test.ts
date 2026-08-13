@@ -27,7 +27,7 @@ import type { TrashRecord } from "../../../src/contracts/storage/records/trash";
 import type { StorageError } from "../../../src/contracts/storage/storage-errors";
 import type { StorageTransaction, StorageTransactionCoordinator } from "../../../src/contracts/storage/transaction";
 import {
-  createCanonicalProjectStateV4Values,
+  createCanonicalProjectStateV5Values,
   createNewProject,
 } from "../../../src/domain/entities/project-factory";
 import { createFixedRuntime } from "../../helpers/fixed-runtime";
@@ -45,9 +45,9 @@ describe("project application contracts", () => {
       revision: 0,
       name: "Neues Projekt",
       state: {
-        schemaVersion: 4,
+        schemaVersion: 5,
         wizardStep: 1,
-        values: createCanonicalProjectStateV4Values(),
+        values: createCanonicalProjectStateV5Values(),
         assetIds: [],
       },
       currentRevisionId: null,

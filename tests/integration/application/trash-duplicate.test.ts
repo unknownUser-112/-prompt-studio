@@ -78,7 +78,7 @@ describe("project trash and duplication", () => {
       value: {
         id: "project-000001",
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: {
             garment: {
               upper: "user upper",
@@ -90,9 +90,9 @@ describe("project trash and duplication", () => {
         },
       },
     });
-    expect(await value(harness.projects.getById(v1.id))).toMatchObject({ state: { schemaVersion: 4 } });
+    expect(await value(harness.projects.getById(v1.id))).toMatchObject({ state: { schemaVersion: 5 } });
     const revision = (await value(harness.revisions.listByProjectId("project-000001")))[0];
-    expect(revision).toMatchObject({ reason: "duplicate", snapshot: { state: { schemaVersion: 4 } } });
+    expect(revision).toMatchObject({ reason: "duplicate", snapshot: { state: { schemaVersion: 5 } } });
   });
 
   it("upgrades a V2 source before creating its V4 duplicate and duplicate revision", async () => {
@@ -113,7 +113,7 @@ describe("project trash and duplication", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: {
             model: { behaviour: "modelBehaviour.authentic_lifestyle" },
             realism: { reference: "realism.user" },
@@ -123,7 +123,7 @@ describe("project trash and duplication", () => {
       },
     });
     const revisions = await value(harness.revisions.listByProjectId("project-000001"));
-    expect(revisions[0]).toMatchObject({ reason: "duplicate", snapshot: { state: { schemaVersion: 4 } } });
+    expect(revisions[0]).toMatchObject({ reason: "duplicate", snapshot: { state: { schemaVersion: 5 } } });
   });
 
   it("upgrades a V3 source before creating its V4 duplicate", async () => {
@@ -142,7 +142,7 @@ describe("project trash and duplication", () => {
       value: {
         id: "project-000001",
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: {
             character: {
               faceShape: "faceShape.oval",
@@ -170,7 +170,7 @@ describe("project trash and duplication", () => {
     expect(harness.service.getActiveProject()).toMatchObject({
       id: activeV1.id,
       state: {
-        schemaVersion: 4,
+        schemaVersion: 5,
         values: { camera: { device: "device.user_camera", framing: "framing.whole_person" } },
       },
     });
@@ -275,7 +275,7 @@ describe("project trash and duplication", () => {
       value: {
         id: "trashed-v1",
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: {
             scene: { location: "user place", area: "locationArea.apartment.modern_living_room_window" },
           },
@@ -284,7 +284,7 @@ describe("project trash and duplication", () => {
     });
     const revisions = await value(harness.revisions.listByProjectId("trashed-v1"));
     expect(revisions).toHaveLength(1);
-    expect(revisions[0]).toMatchObject({ reason: "restore", snapshot: { state: { schemaVersion: 4 } } });
+    expect(revisions[0]).toMatchObject({ reason: "restore", snapshot: { state: { schemaVersion: 5 } } });
   });
 
   it("restores a V2 trash payload as V4 without changing the stored historical payload", async () => {
@@ -316,7 +316,7 @@ describe("project trash and duplication", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: {
             model: { behaviour: "modelBehaviour.user" },
             realism: { reference: "realism.reference" },
@@ -354,7 +354,7 @@ describe("project trash and duplication", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: { character: { eyeShape: "eyeShape.user", faceShape: "faceShape.oval" } },
         },
       },
@@ -391,7 +391,7 @@ describe("project trash and duplication", () => {
       value: {
         name: "Historical name",
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: { character: { age: 37, gender: "gender.woman" } },
           assetIds: ["historic"],
         },
@@ -404,7 +404,7 @@ describe("project trash and duplication", () => {
     expect(revisions.find((entry) => entry.reason === "restore")).toMatchObject({
       sequence: 6,
       parentRevisionId: historical.id,
-      snapshot: { state: { schemaVersion: 4 } },
+      snapshot: { state: { schemaVersion: 5 } },
     });
   });
 
@@ -437,7 +437,7 @@ describe("project trash and duplication", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: {
             model: { behaviour: "modelBehaviour.authentic_lifestyle" },
             realism: { reference: "realism.user" },
@@ -447,7 +447,7 @@ describe("project trash and duplication", () => {
     });
     expect(JSON.stringify(await value(harness.revisions.getById(historical.id)))).toBe(before);
     expect((await value(harness.revisions.listByProjectId(harness.source.id))).find((entry) => entry.reason === "restore"))
-      .toMatchObject({ snapshot: { state: { schemaVersion: 4 } } });
+      .toMatchObject({ snapshot: { state: { schemaVersion: 5 } } });
   });
 
   it("restores an immutable historical V3 revision into a new current V4 revision", async () => {
@@ -479,7 +479,7 @@ describe("project trash and duplication", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 4,
+          schemaVersion: 5,
           values: { character: { noseShape: "noseShape.user", faceAge: "faceAge.adult" } },
         },
       },

@@ -5,7 +5,7 @@ import type { ProfileLayout } from "../../src/domain/contracts/prompt/layout";
 import { ConstraintEngine } from "../../src/domain/engines/constraint-engine";
 import { PromptAstBuilder } from "../../src/domain/engines/prompt-ast-builder";
 import { createResolvedStateBuilder } from "../../src/domain/engines/resolved-state-builder";
-import { createCanonicalProjectStateV4Values } from "../../src/domain/entities/project-factory";
+import { createCanonicalProjectStateV5Values } from "../../src/domain/entities/project-factory";
 import { cameraProvider } from "../../src/plugins/camera/rules";
 import { cameraSection } from "../../src/plugins/camera/sections";
 import { characterSheetProvider } from "../../src/plugins/character-sheet/rules";
@@ -18,6 +18,8 @@ import { adaptiveRealismProvider } from "../../src/plugins/adaptive-realism/rule
 import { adaptiveRealismSection } from "../../src/plugins/adaptive-realism/sections";
 import { modelBehaviourProvider } from "../../src/plugins/model-behaviour/rules";
 import { modelBehaviourSection } from "../../src/plugins/model-behaviour/sections";
+import { additionalPersonProvider } from "../../src/plugins/additional-person/rules";
+import { additionalPersonSection } from "../../src/plugins/additional-person/sections";
 import { TextRenderer } from "../../src/renderers/text-renderer";
 import { createFixedRuntime } from "../helpers/fixed-runtime";
 
@@ -32,7 +34,7 @@ describe("V600 prompt parity", () => {
   it("renders the traced German camera section for universal/baseline.de", async () => {
     const runtime = createFixedRuntime().runtime;
     const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
-    const input = { ...createCanonicalProjectStateV4Values(), promptLanguage: "Deutsch", profile: "Universal", step: 9 };
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch", profile: "Universal", step: 9 };
     const state = await engine.resolve(input, [cameraProvider]);
     const document = new PromptAstBuilder().build(state, [cameraSection]);
     const layout: ProfileLayout = { id: "universal", sections: [{ sectionId: document.sections[0]!.id, order: 0 }] };
@@ -53,7 +55,7 @@ describe("V600 prompt parity", () => {
   it("renders the traced English camera section for universal/baseline.en", async () => {
     const runtime = createFixedRuntime().runtime;
     const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
-    const input = { ...createCanonicalProjectStateV4Values(), promptLanguage: "English", profile: "Universal", step: 9 };
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage: "English", profile: "Universal", step: 9 };
     const state = await engine.resolve(input, [cameraProvider]);
     const document = new PromptAstBuilder().build(state, [cameraSection]);
     const layout: ProfileLayout = { id: "universal", sections: [{ sectionId: document.sections[0]!.id, order: 0 }] };
@@ -67,7 +69,7 @@ describe("V600 prompt parity", () => {
   it("renders the traced German subject and human-detail blocks for universal/baseline.de", async () => {
     const runtime = createFixedRuntime().runtime;
     const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
-    const input = { ...createCanonicalProjectStateV4Values(), promptLanguage: "Deutsch", profile: "Universal", step: 9 };
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch", profile: "Universal", step: 9 };
     const state = await engine.resolve(input, [characterSheetProvider]);
     const document = new PromptAstBuilder().build(state, [characterSheetSection]);
     const layout: ProfileLayout = {
@@ -108,7 +110,7 @@ describe("V600 prompt parity", () => {
   it("renders the traced English subject and human-detail blocks for universal/baseline.en", async () => {
     const runtime = createFixedRuntime().runtime;
     const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
-    const input = { ...createCanonicalProjectStateV4Values(), promptLanguage: "English", profile: "Universal", step: 9 };
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage: "English", profile: "Universal", step: 9 };
     const state = await engine.resolve(input, [characterSheetProvider]);
     const document = new PromptAstBuilder().build(state, [characterSheetSection]);
     const layout: ProfileLayout = {
@@ -127,7 +129,7 @@ describe("V600 prompt parity", () => {
   ])("renders the traced material-physics block for %s", async (promptLanguage, scenarioId, heading) => {
     const runtime = createFixedRuntime().runtime;
     const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
-    const input = { ...createCanonicalProjectStateV4Values(), promptLanguage, profile: "Universal", step: 9 };
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage, profile: "Universal", step: 9 };
     const state = await engine.resolve(input, [materialPhysicsProvider]);
     const document = new PromptAstBuilder().build(state, [materialPhysicsSection]);
     const layout: ProfileLayout = { id: "universal", sections: [{ sectionId: document.sections[0]!.id, order: 0 }] };
@@ -149,7 +151,7 @@ describe("V600 prompt parity", () => {
   ])("renders the traced adaptive physical context for %s", async (promptLanguage, scenarioId, heading) => {
     const runtime = createFixedRuntime().runtime;
     const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
-    const input = { ...createCanonicalProjectStateV4Values(), promptLanguage, profile: "Universal", step: 9 };
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage, profile: "Universal", step: 9 };
     const state = await engine.resolve(input, [materialPhysicsProvider]);
     const document = new PromptAstBuilder().build(state, [materialPhysicsSection]);
     const context = document.sections.find((section) => section.id.includes("material-physics-b-context"))!;
@@ -167,7 +169,7 @@ describe("V600 prompt parity", () => {
   ])("renders traced outfit and pose blocks for %s", async (promptLanguage, scenarioId) => {
     const runtime = createFixedRuntime().runtime;
     const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
-    const input = { ...createCanonicalProjectStateV4Values(), promptLanguage, profile: "Universal", step: 9 };
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage, profile: "Universal", step: 9 };
     const state = await engine.resolve(input, [characterSheetProvider, garmentProvider]);
     const document = new PromptAstBuilder().build(state, [characterSheetSection, garmentSection]);
     const outfit = document.sections.find((section) => section.sourcePluginId === "garment")!;
@@ -186,7 +188,7 @@ describe("V600 prompt parity", () => {
   ])("renders traced style and adaptive-realism blocks for %s", async (promptLanguage, scenarioId, styleHeading, realismHeading) => {
     const runtime = createFixedRuntime().runtime;
     const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
-    const input = { ...createCanonicalProjectStateV4Values(), promptLanguage, profile: "Universal", step: 9 };
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage, profile: "Universal", step: 9 };
     const state = await engine.resolve(input, [adaptiveRealismProvider, modelBehaviourProvider]);
     const document = new PromptAstBuilder().build(state, [adaptiveRealismSection, modelBehaviourSection]);
     const style = document.sections.find((section) => section.sourcePluginId === "model-behaviour")!;
@@ -207,7 +209,7 @@ describe("V600 prompt parity", () => {
   it("renders the traced English skin-and-capture-appearance block", async () => {
     const runtime = createFixedRuntime().runtime;
     const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
-    const input = { ...createCanonicalProjectStateV4Values(), promptLanguage: "English", profile: "Universal", step: 9 };
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage: "English", profile: "Universal", step: 9 };
     const state = await engine.resolve(input, [adaptiveRealismProvider]);
     const document = new PromptAstBuilder().build(state, [adaptiveRealismSection]);
     const capture = document.sections.find((section) => section.id.includes("adaptive-realism-b-capture"))!;
@@ -227,7 +229,7 @@ describe("V600 prompt parity", () => {
   ])("renders the traced facial-features block for %s", async (promptLanguage, scenarioId, heading) => {
     const runtime = createFixedRuntime().runtime;
     const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
-    const input = { ...createCanonicalProjectStateV4Values(), promptLanguage, profile: "Universal", step: 9 };
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage, profile: "Universal", step: 9 };
     const state = await engine.resolve(input, [characterSheetProvider]);
     const document = new PromptAstBuilder().build(state, [characterSheetSection]);
     const facialFeatures = document.sections.find((section) => section.id.includes("character-sheet-d-face"))!;
@@ -241,5 +243,23 @@ describe("V600 prompt parity", () => {
     ]));
     expect(state.trace.entries.some(({ path }) => path === "character.eyeShape")).toBe(true);
     expect(state.trace.entries.some(({ path }) => path === "character.noseShape")).toBe(true);
+  });
+
+  it.each([
+    ["Deutsch", "baseline.de"],
+    ["English", "baseline.en"],
+  ])("renders the traced additional-person baseline for %s", async (promptLanguage, scenarioId) => {
+    const runtime = createFixedRuntime().runtime;
+    const engine = new ConstraintEngine({ runtime, stateBuilder: createResolvedStateBuilder() });
+    const input = { ...createCanonicalProjectStateV5Values(), promptLanguage, profile: "Universal", step: 9 };
+    const state = await engine.resolve(input, [additionalPersonProvider]);
+    const document = new PromptAstBuilder().build(state, [additionalPersonSection]);
+    const layout: ProfileLayout = { id: "universal", sections: [{ sectionId: document.sections[0]!.id, order: 0 }] };
+
+    expect(new TextRenderer().render(document, layout).value).toBe(goldenBlocks(scenarioId).at(-1));
+    expect(state.trace.entries).toEqual([expect.objectContaining({
+      id: "scene.additionalPerson:additional-person.presence",
+      sourceField: "scene.additionalPerson",
+    })]);
   });
 });
