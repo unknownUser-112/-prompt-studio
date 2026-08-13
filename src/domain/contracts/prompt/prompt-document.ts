@@ -2,6 +2,15 @@ import type { ResolutionTraceEntry } from "../resolved-state/resolution-trace";
 
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
+export interface PromptFragment {
+  readonly id: string;
+  readonly sourcePluginId: string;
+  readonly sectionId: string;
+  readonly order: number;
+  readonly text: string;
+  readonly trace: readonly ResolutionTraceEntry[];
+}
+
 export interface PromptSection {
   readonly id: string;
   readonly sourcePluginId: string;
@@ -10,6 +19,7 @@ export interface PromptSection {
   readonly text: string;
   readonly value: JsonValue;
   readonly trace: readonly ResolutionTraceEntry[];
+  readonly fragments: readonly PromptFragment[];
 }
 
 export interface PromptDocument {

@@ -7,6 +7,7 @@ import { materialPhysicsSection } from "../../../../src/plugins/material-physics
 import { ConstraintEngine } from "../../../../src/domain/engines/constraint-engine";
 import { createResolvedStateBuilder } from "../../../../src/domain/engines/resolved-state-builder";
 import { createFixedRuntime } from "../../../helpers/fixed-runtime";
+import { createCanonicalProjectStateV5Values } from "../../../../src/domain/entities/project-factory";
 
 const resolve = (input: unknown) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(input, [materialPhysicsProvider, adaptiveRealismProvider]);
 const resolveMaterials = (input: unknown, reversed = false) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
@@ -196,5 +197,31 @@ describe("adaptive realism and material physics plugins", () => {
       .resolve({ realism: { reference: "realism.standard" } }, [adaptiveRealismProvider]);
 
     expect(adaptiveRealismSection.provide(state).some(({ slotId }) => slotId === "adaptive-realism-b-capture")).toBe(false);
+  });
+
+  it.each(["Deutsch", "English"])("exposes exact traced material and physical-context fragments in %s", async (promptLanguage) => {
+    const state = await resolveMaterials({ ...createCanonicalProjectStateV5Values(), promptLanguage });
+    const first = materialPhysicsSection.provide(state);
+    const second = materialPhysicsSection.provide(state);
+    const fragments = first.flatMap((draft) => draft.fragments ?? []);
+    const material = fragments.find(({ id }) => id === "material.physics");
+    const context = fragments.find(({ id }) => id === "material.adaptive-physical-context");
+    const contextTrace = state.trace.entries.find(({ path }) => path === "material.adaptivePhysicalContext")!;
+
+    expect(first).toEqual(second);
+    expect(material?.text).not.toMatch(/^ADAPTIVE/u);
+    expect(context?.text).not.toMatch(/^ADAPTIVE/u);
+    expect(material?.traceIds).toHaveLength(3);
+    expect(context?.traceIds).toEqual([contextTrace.id]);
+    expect(contextTrace).toHaveProperty("sourceFields");
+  });
+
+  it("exposes adaptive-realism fragments with exact resolved traces", async () => {
+    const state = await resolveAdaptive({ ...createCanonicalProjectStateV5Values(), promptLanguage: "English" });
+    const fragments = adaptiveRealismSection.provide(state).flatMap((draft) => draft.fragments ?? []);
+
+    expect(fragments.map(({ id }) => id)).toEqual(["realism.adaptive", "realism.capture-appearance"]);
+    expect(fragments[0]?.traceIds).toEqual([state.trace.entries.find(({ path }) => path === "realism.reference")!.id]);
+    expect(fragments[1]?.traceIds).toEqual([state.trace.entries.find(({ path }) => path === "captureAppearance")!.id]);
   });
 });

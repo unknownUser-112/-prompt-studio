@@ -1,5 +1,5 @@
 import type { PromptSectionProvider } from "../../contracts/plugins/plugin-registrar";
-import { createResolvedSectionDraft } from "../../contracts/plugins/create-resolved-section-draft";
+import { createResolvedFragmentDraft, createResolvedSectionDraft } from "../../contracts/plugins/create-resolved-section-draft";
 
 const POSITIVE_EN = "ADDITIONAL PERSON\nShow exactly two clearly adult people: the selected primary subject and a distinct random adult woman, positioned beside the primary subject, standing. The primary subject retains every selected identity attribute and remains visually primary. The second person has a clearly distinct identity. Do not merge, clone, duplicate, or exchange faces, bodies, hairstyles, or clothing.\n\nDo not add any person beyond the two specified adults.";
 
@@ -13,7 +13,14 @@ export const additionalPersonSection: PromptSectionProvider = {
       : state.facts.values.promptLanguage === "Deutsch"
         ? "Keine zusätzliche Person hinzufügen."
         : "Do not add any additional people.";
-    return [createResolvedSectionDraft(state, "additional-person", text)];
+    const fragment = createResolvedFragmentDraft(
+      state,
+      "additional-person",
+      "restrictions.additional-people",
+      text,
+      ["scene.additionalPerson"],
+    );
+    return [createResolvedSectionDraft(state, "additional-person", text, [fragment])];
   },
 };
 

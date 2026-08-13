@@ -5,6 +5,8 @@ import { cameraProvider } from "../../../../src/plugins/camera/rules";
 import { ConstraintEngine } from "../../../../src/domain/engines/constraint-engine";
 import { createResolvedStateBuilder } from "../../../../src/domain/engines/resolved-state-builder";
 import { createFixedRuntime } from "../../../helpers/fixed-runtime";
+import { createCanonicalProjectStateV5Values } from "../../../../src/domain/entities/project-factory";
+import { characterSheetSection } from "../../../../src/plugins/character-sheet/sections";
 
 const resolve = (input: unknown) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(input, [characterSheetProvider]);
 const resolveWithOrder = (input: unknown, reversed = false) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
@@ -78,6 +80,24 @@ describe("character-sheet plugin", () => {
 
     expect(normal.values).toEqual(input);
     expect(reversed).toEqual(normal);
+  });
+
+  it.each(["Deutsch", "English"])("exposes deterministic semantic character fragments without universal headings in %s", async (promptLanguage) => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage });
+    const first = characterSheetSection.provide(state);
+    const second = characterSheetSection.provide(state);
+    const fragments = first.flatMap((draft) => draft.fragments ?? []);
+
+    expect(first).toEqual(second);
+    expect(fragments.map(({ id }) => id)).toEqual([
+      "character.subject",
+      "realism.skin",
+      "pose.action",
+      "character.facial-features",
+    ]);
+    expect(fragments.every(({ text }) => !/^(PERSON|SUBJECT|HAUTREALISMUS|SKIN REALISM|POSE|GESICHTSMERKMALE|FACIAL FEATURES)\n/u.test(text))).toBe(true);
+    expect(fragments.every(({ traceIds }) => traceIds.length > 0)).toBe(true);
+    expect(new Set(fragments.flatMap(({ traceIds }) => traceIds))).toEqual(new Set(first.flatMap(({ traceIds }) => traceIds)));
   });
 });
 

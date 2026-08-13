@@ -1,6 +1,6 @@
 import type { ProfileLayout } from "../contracts/prompt/layout";
-import type { JsonValue, PromptDocument, PromptSection } from "../contracts/prompt/prompt-document";
-import type { PromptSectionDraft } from "../contracts/prompt/providers";
+import type { JsonValue, PromptDocument, PromptFragment, PromptSection } from "../contracts/prompt/prompt-document";
+import type { PromptFragmentDraft, PromptSectionDraft } from "../contracts/prompt/providers";
 import type { ResolvedState } from "../contracts/resolved-state/resolved-state";
 import type { ResolutionTraceEntry } from "../contracts/resolved-state/resolution-trace";
 import type { PromptSectionProvider } from "../../contracts/plugins/plugin-registrar";
@@ -8,6 +8,7 @@ import type { PromptSectionProvider } from "../../contracts/plugins/plugin-regis
 export const PROMPT_AST_VERSION = "v1";
 
 const SLOT_ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u;
+const FRAGMENT_ID_PATTERN = /^\S+$/u;
 
 function compareCodeUnits(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -84,11 +85,21 @@ export class PromptAstBuilder {
         .sort((left, right) => compareCodeUnits(left.slotId, right.slotId))
         .map((draft) => ({ provider, draft })));
     const seenSlots = new Set<string>();
+    const seenFragmentIds = new Set<string>();
     const referencedTraceIds = new Set<string>();
-    const sections = drafts.map(({ provider, draft }, order) => this.toSection(provider, draft, traceById, seenSlots, referencedTraceIds, order));
+    const sections = drafts.map(({ provider, draft }, order) => this.toSection(
+      provider,
+      draft,
+      traceById,
+      seenSlots,
+      seenFragmentIds,
+      referencedTraceIds,
+      order,
+    ));
 
     if (referencedTraceIds.size !== traceById.size) {
-      throw new Error("Prompt document must cover every resolution trace entry");
+      const missing = [...traceById.keys()].filter((id) => !referencedTraceIds.has(id)).sort(compareCodeUnits);
+      throw new Error(`Prompt document must cover every resolution trace entry: ${missing.join(", ")}`);
     }
     return deepFreeze({
       astVersion: PROMPT_AST_VERSION,
@@ -104,6 +115,7 @@ export class PromptAstBuilder {
     draft: PromptSectionDraft,
     traceById: ReadonlyMap<string, ResolutionTraceEntry>,
     seenSlots: Set<string>,
+    seenFragmentIds: Set<string>,
     referencedTraceIds: Set<string>,
     order: number,
   ): PromptSection {
@@ -121,14 +133,59 @@ export class PromptAstBuilder {
       referencedTraceIds.add(id);
       return entry;
     });
+    const fragmentDrafts = draft.fragments ?? [{
+      id: `${draft.sourcePluginId}.${draft.slotId}.content`,
+      text: draft.text,
+      traceIds: draft.traceIds,
+    }];
+    if (draft.fragments !== undefined && draft.fragments.length === 0) {
+      throw new Error("Prompt fragment collection must not be empty");
+    }
+    const sectionId = `${PROMPT_AST_VERSION}:${draft.sourcePluginId}:${draft.slotId}`;
+    const fragments = fragmentDrafts.map((fragment, fragmentOrder) => this.toFragment(
+      provider,
+      sectionId,
+      fragment,
+      fragmentOrder,
+      draft.fragments !== undefined,
+      traceById,
+      seenFragmentIds,
+      referencedTraceIds,
+    ));
     return {
-      id: `${PROMPT_AST_VERSION}:${draft.sourcePluginId}:${draft.slotId}`,
+      id: sectionId,
       sourcePluginId: draft.sourcePluginId,
       slotId: draft.slotId,
       order,
       text: draft.text,
       value: canonicalize(draft.value),
       trace,
+      fragments,
     };
+  }
+
+  private toFragment(
+    provider: PromptSectionProvider,
+    sectionId: string,
+    draft: PromptFragmentDraft,
+    order: number,
+    requiresTrace: boolean,
+    traceById: ReadonlyMap<string, ResolutionTraceEntry>,
+    seenFragmentIds: Set<string>,
+    referencedTraceIds: Set<string>,
+  ): PromptFragment {
+    if (!FRAGMENT_ID_PATTERN.test(draft.id)) throw new Error(`Invalid prompt fragment ID: ${draft.id}`);
+    if (seenFragmentIds.has(draft.id)) throw new Error(`Duplicate prompt fragment ID: ${draft.id}`);
+    if (draft.text.trim().length === 0) throw new Error(`Prompt fragment text must not be empty: ${draft.id}`);
+    if (requiresTrace && draft.traceIds.length === 0) throw new Error(`Prompt fragment trace list must not be empty: ${draft.id}`);
+    if (new Set(draft.traceIds).size !== draft.traceIds.length) throw new Error(`Duplicate prompt fragment trace ID: ${draft.id}`);
+    seenFragmentIds.add(draft.id);
+    const trace = draft.traceIds.map((id) => {
+      const entry = traceById.get(id);
+      if (entry === undefined) throw new Error(`Prompt fragment references unknown resolution trace: ${id}`);
+      referencedTraceIds.add(id);
+      return entry;
+    }).sort((left, right) => compareCodeUnits(left.id, right.id));
+    return { id: draft.id, sourcePluginId: provider.id, sectionId, order, text: draft.text, trace };
   }
 }

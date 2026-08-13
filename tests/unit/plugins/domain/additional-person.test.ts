@@ -24,6 +24,11 @@ describe("additional-person plugin", () => {
 
     expect(additionalPersonSection.provide(state)).toEqual(additionalPersonSection.provide(state));
     expect(additionalPersonSection.provide(state)[0]).toMatchObject({ text: expected });
+    expect(additionalPersonSection.provide(state)[0]?.fragments).toEqual([{
+      id: "restrictions.additional-people",
+      text: expected,
+      traceIds: additionalPersonSection.provide(state)[0]?.traceIds,
+    }]);
   });
 
   it("does not invent a default when the resolved Boolean is absent", async () => {
