@@ -85,12 +85,42 @@ export interface CanonicalProjectStateV3Values extends CanonicalProjectStateV2Va
   readonly realism: ProjectRealismBaselineValues;
 }
 
+export interface ProjectCharacterV4BaselineValues extends ProjectCharacterBaselineValues {
+  readonly faceShape: string;
+  readonly eyeShape: string;
+  readonly noseShape: string;
+  readonly faceAge: string;
+}
+
+export interface CanonicalProjectStateV4Values extends DomainObject {
+  readonly camera: ProjectCameraBaselineValues;
+  readonly character: ProjectCharacterV4BaselineValues;
+  readonly pose: ProjectPoseBaselineValues;
+  readonly garment: ProjectGarmentBaselineValues;
+  readonly scene: ProjectSceneBaselineValues;
+  readonly lighting: ProjectLightingBaselineValues;
+  readonly model: ProjectModelBaselineValues;
+  readonly realism: ProjectRealismBaselineValues;
+}
+
 export function createCanonicalProjectStateV2Values(): CanonicalProjectStateV2Values {
   const { model: _model, realism: _realism, ...v2Values } = createCanonicalProjectStateV3Values();
   return v2Values;
 }
 
 export function createCanonicalProjectStateV3Values(): CanonicalProjectStateV3Values {
+  const v4Values = createCanonicalProjectStateV4Values();
+  const {
+    faceShape: _faceShape,
+    eyeShape: _eyeShape,
+    noseShape: _noseShape,
+    faceAge: _faceAge,
+    ...v3Character
+  } = v4Values.character;
+  return { ...v4Values, character: v3Character };
+}
+
+export function createCanonicalProjectStateV4Values(): CanonicalProjectStateV4Values {
   return {
     camera: {
       framing: "framing.whole_person",
@@ -116,6 +146,10 @@ export function createCanonicalProjectStateV3Values(): CanonicalProjectStateV3Va
         texture: "hairTexture.natural_waves",
         style: "hairStyle.loose",
       },
+      faceShape: "faceShape.oval",
+      eyeShape: "eyeShape.almond",
+      noseShape: "noseShape.straight",
+      faceAge: "faceAge.adult",
     },
     pose: {
       position: "pose.standing",
@@ -158,9 +192,9 @@ export function createNewProject(_runtime: RuntimeEnvironment, _name = "Neues Pr
     revision: 0,
     name: _name,
     state: {
-      schemaVersion: 3,
+      schemaVersion: 4,
       wizardStep: 1,
-      values: createCanonicalProjectStateV3Values(),
+      values: createCanonicalProjectStateV4Values(),
       assetIds: [],
     },
     currentRevisionId: null,

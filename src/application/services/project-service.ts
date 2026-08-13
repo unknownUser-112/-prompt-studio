@@ -12,7 +12,7 @@ import type { Project } from "../../domain/entities/project";
 import type { ProjectRevision } from "../../domain/entities/project-revision";
 import type { TrashEntry } from "../../domain/entities/trash-entry";
 import { createNewProject, duplicateProject } from "../../domain/entities/project-factory";
-import { migrateProjectStateToCurrent } from "../migrations/v600-project-state-v2-to-v3";
+import { migrateProjectStateToCurrent } from "../migrations/v600-project-state-v3-to-v4";
 import { mapProjectEntityToRecord, mapProjectRecordToEntity } from "../mappers/project-mapper";
 import { mapProjectRevisionEntityToRecord, mapProjectRevisionRecordToEntity } from "../mappers/project-revision-mapper";
 import { mapTrashEntryRecordToEntity } from "../mappers/trash-mapper";

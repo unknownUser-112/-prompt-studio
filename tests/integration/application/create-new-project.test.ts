@@ -79,7 +79,7 @@ describe("serialized CreateNewProjectCommand", () => {
       id: "project-000001",
       currentRevisionId: "project-revision-000001",
       state: {
-        schemaVersion: 3,
+        schemaVersion: 4,
         wizardStep: 1,
         values: { camera: { framing: "framing.whole_person" } },
         assetIds: [],
@@ -228,7 +228,7 @@ describe("serialized CreateNewProjectCommand", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 3,
+          schemaVersion: 4,
           wizardStep: 4,
           values: {
             camera: { device: "user camera", framing: "framing.whole_person" },
@@ -238,11 +238,11 @@ describe("serialized CreateNewProjectCommand", () => {
         },
       },
     });
-    expect(second).toMatchObject({ ok: true, value: { state: { schemaVersion: 3 } } });
+    expect(second).toMatchObject({ ok: true, value: { state: { schemaVersion: 4 } } });
     expect(await value(harness.projects.getById(target.id))).toEqual(persistedAfterFirst);
   });
 
-  it("atomically upgrades a V2 project with user style values to V3", async () => {
+  it("atomically upgrades a V2 project with user style values to V4", async () => {
     const harness = await createHarness("load-v2");
     const target = {
       ...harness.oldRecord,
@@ -260,7 +260,7 @@ describe("serialized CreateNewProjectCommand", () => {
       ok: true,
       value: {
         state: {
-          schemaVersion: 3,
+          schemaVersion: 4,
           values: {
             model: { behaviour: "modelBehaviour.user" },
             realism: { reference: "realism.reference" },
@@ -269,7 +269,40 @@ describe("serialized CreateNewProjectCommand", () => {
         },
       },
     });
-    expect(await value(harness.projects.getById(target.id))).toMatchObject({ state: { schemaVersion: 3 } });
+    expect(await value(harness.projects.getById(target.id))).toMatchObject({ state: { schemaVersion: 4 } });
+  });
+
+  it("atomically upgrades a V3 project with user face values to V4", async () => {
+    const harness = await createHarness("load-v3");
+    const target = {
+      ...harness.oldRecord,
+      id: "target-v3",
+      state: {
+        schemaVersion: 3,
+        values: { character: { faceShape: "faceShape.user" }, custom: "kept" },
+      },
+    };
+    await value(harness.projects.put(target));
+
+    const result = await harness.service.load(target.id);
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        state: {
+          schemaVersion: 4,
+          values: {
+            character: {
+              faceShape: "faceShape.user",
+              eyeShape: "eyeShape.almond",
+              noseShape: "noseShape.straight",
+              faceAge: "faceAge.adult",
+            },
+            custom: "kept",
+          },
+        },
+      },
+    });
   });
 
   it("keeps the previous project active when a load flush fails", async () => {

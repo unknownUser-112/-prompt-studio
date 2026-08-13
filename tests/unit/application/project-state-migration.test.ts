@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { migrateProjectStateV1ToV2 } from "../../../src/application/migrations/v600-project-state-v1-to-v2";
+import { migrateProjectStateV2ToV3 } from "../../../src/application/migrations/v600-project-state-v2-to-v3";
 import {
   migrateProjectStateToCurrent,
-  migrateProjectStateV2ToV3,
-} from "../../../src/application/migrations/v600-project-state-v2-to-v3";
+  migrateProjectStateV3ToV4,
+} from "../../../src/application/migrations/v600-project-state-v3-to-v4";
 import {
   createCanonicalProjectStateV2Values,
   createCanonicalProjectStateV3Values,
+  createCanonicalProjectStateV4Values,
 } from "../../../src/domain/entities/project-factory";
 import type { DomainObject } from "../../../src/domain/entities/project";
 
@@ -132,10 +134,11 @@ describe("ProjectState v1 to v2 migration", () => {
     });
   });
 
-  it("chains V1 through V2 to V3 deterministically and leaves V3 identical", () => {
+  it("keeps the V1 through V3 chain deterministic before the V4 step", () => {
     const v1: DomainObject = { schemaVersion: 1, values: { realism: { reference: "realism.user" } } };
-    const first = migrateProjectStateToCurrent(v1);
-    const second = migrateProjectStateToCurrent(v1);
+    const v2 = migrateProjectStateV1ToV2(v1);
+    const first = migrateProjectStateV2ToV3(v2);
+    const second = migrateProjectStateV2ToV3(v2);
 
     expect(first).toMatchObject({
       schemaVersion: 3,
@@ -146,7 +149,7 @@ describe("ProjectState v1 to v2 migration", () => {
       },
     });
     expect(second).toEqual(first);
-    expect(migrateProjectStateToCurrent(first)).toBe(first);
+    expect(migrateProjectStateV2ToV3(first)).toBe(first);
   });
 
   it("keeps the complete V3 factory baseline semantic and free of prompt paragraphs", () => {
@@ -155,5 +158,54 @@ describe("ProjectState v1 to v2 migration", () => {
       realism: { reference: "realism.reference" },
     });
     expect(JSON.stringify(createCanonicalProjectStateV3Values())).not.toMatch(/[.!?]\s/u);
+  });
+
+  it("adds only missing editable face facts when migrating V3 to V4", () => {
+    const v3: DomainObject = {
+      schemaVersion: 3,
+      values: {
+        character: { faceShape: "faceShape.user", custom: "kept" },
+        model: { behaviour: "modelBehaviour.user" },
+      },
+    };
+
+    expect(migrateProjectStateV3ToV4(v3)).toEqual({
+      schemaVersion: 4,
+      values: {
+        character: {
+          faceShape: "faceShape.user",
+          eyeShape: "eyeShape.almond",
+          noseShape: "noseShape.straight",
+          faceAge: "faceAge.adult",
+          custom: "kept",
+        },
+        model: { behaviour: "modelBehaviour.user" },
+      },
+    });
+  });
+
+  it("chains V1 and V2 through V4 deterministically and leaves V4 identical", () => {
+    for (const input of [
+      { schemaVersion: 1, values: { character: { faceShape: "faceShape.user" } } },
+      { schemaVersion: 2, values: { character: { eyeShape: "eyeShape.user" } } },
+    ] satisfies DomainObject[]) {
+      const first = migrateProjectStateToCurrent(input);
+      const second = migrateProjectStateToCurrent(input);
+      expect(first).toMatchObject({ schemaVersion: 4, values: { character: { faceAge: "faceAge.adult" } } });
+      expect(second).toEqual(first);
+      expect(migrateProjectStateToCurrent(first)).toBe(first);
+    }
+  });
+
+  it("keeps the V4 factory baseline semantic and free of prompt paragraphs", () => {
+    expect(createCanonicalProjectStateV4Values()).toMatchObject({
+      character: {
+        faceShape: "faceShape.oval",
+        eyeShape: "eyeShape.almond",
+        noseShape: "noseShape.straight",
+        faceAge: "faceAge.adult",
+      },
+    });
+    expect(JSON.stringify(createCanonicalProjectStateV4Values())).not.toMatch(/[.!?]\s/u);
   });
 });

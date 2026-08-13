@@ -1,6 +1,5 @@
 import { createCanonicalProjectStateV3Values } from "../../domain/entities/project-factory";
 import type { DomainObject, DomainValue } from "../../domain/entities/project";
-import { migrateProjectStateV1ToV2 } from "./v600-project-state-v1-to-v2";
 
 export function migrateProjectStateV2ToV3(state: DomainObject): DomainObject {
   if (state.schemaVersion !== 2) return state;
@@ -15,11 +14,6 @@ export function migrateProjectStateV2ToV3(state: DomainObject): DomainObject {
     schemaVersion: 3,
     values,
   };
-}
-
-export function migrateProjectStateToCurrent(state: DomainObject): DomainObject {
-  const v2 = migrateProjectStateV1ToV2(state);
-  return migrateProjectStateV2ToV3(v2);
 }
 
 function mergeMissingObject(current: DomainValue | undefined, baseline: DomainObject): DomainObject {
