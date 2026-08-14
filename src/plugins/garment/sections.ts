@@ -11,25 +11,30 @@ export const garmentSection: PromptSectionProvider = {
   provide: (state) => {
     const german = state.facts.values.promptLanguage === "Deutsch";
     if (isOpenVoileShirt(state.values)) return [createOpenVoileDraft(state, german)];
+    const wideLegLinen = isWideLegLinenTrousers(state.values);
     const outfit = german
       ? "Sie trägt ein klassisches T-Shirt in Weiß, eine High-Waist-Jeans in Denimblau und weiße klassische Sneaker."
-      : "She wears a classic T-shirt in white, high-waisted jeans in denim blue, and classic white sneakers.";
+      : wideLegLinen
+        ? "She wears a classic T-shirt in white, wide-leg linen trousers in denim blue, and classic white sneakers."
+        : "She wears a classic T-shirt in white, high-waisted jeans in denim blue, and classic white sneakers.";
     const materialBehaviour = german
       ? "Oberteil besteht aus baumwolle; sichtbare Maschenstruktur, weicher Fall und natürliche Dehnung, fällt ruhig und folgt Körperhaltung und Schwerkraft und schulter-, Brust-, Taillen- und Saumbereich zeigen materialgerechte Spannung statt aufgemalter Stoffoberfläche. Hose besteht aus denim; feste Denim-Webung, stabile Zugfalten und glaubwürdige Nähte, fällt ruhig und folgt Körperhaltung und Schwerkraft und bund, Knie- und Hüftbereich zeigen belastungsabhängige Zug-, Kompressions- und Sitzfalten. Schuhe besteht aus leder-Textil-Mischung; materialgerechte Stärke, Falten an den Gelenken und zurückhaltende Reflexionen, fällt ruhig und folgt Körperhaltung und Schwerkraft und sohle, Obermaterial und Fußstellung folgen dem Bodenkontakt; keine schwebenden oder verformten Schuhe."
-      : "The outfit uses cotton, denim, and leather-textile blend. Fabric tension, folds, seams, reflections, and material thickness respond naturally to posture, movement, gravity, and wind. Fabric folds originate from gravity, body contact points, garment construction, and movement; avoid decorative, mirrored, or repetitive wrinkle patterns.";
+      : wideLegLinen
+        ? "The outfit uses cotton, linen, and leather-textile blend. Fabric tension, folds, seams, reflections, and material thickness respond naturally to posture, movement, gravity, and wind. Fabric folds originate from gravity, body contact points, garment construction, and movement; avoid decorative, mirrored, or repetitive wrinkle patterns."
+        : "The outfit uses cotton, denim, and leather-textile blend. Fabric tension, folds, seams, reflections, and material thickness respond naturally to posture, movement, gravity, and wind. Fabric folds originate from gravity, body contact points, garment construction, and movement; avoid decorative, mirrored, or repetitive wrinkle patterns.";
     const outfitFragment = createResolvedFragmentDraft(
       state,
       "garment",
       "garment.outfit",
       outfit,
-      ["garment.footwear.color", "garment.footwear.kind", "garment.lower.color", "garment.lower.kind", "garment.upper.color", "garment.upper.kind"],
+      ["garment.footwear.color", "garment.footwear.kind", "garment.lower.color", "garment.lower.kind", ...(wideLegLinen ? ["garment.lower.material"] : []), "garment.upper.color", "garment.upper.kind"],
     );
     const materialFragment = createResolvedFragmentDraft(
       state,
       "garment",
       "garment.material-behaviour",
       materialBehaviour,
-      ["garment.footwear.color", "garment.footwear.kind", "garment.lower.color", "garment.lower.kind", "garment.upper.color", "garment.upper.kind"],
+      ["garment.footwear.color", "garment.footwear.kind", "garment.lower.color", "garment.lower.kind", ...(wideLegLinen ? ["garment.lower.material"] : []), "garment.upper.color", "garment.upper.kind"],
     );
     const materialConsistencyFragment = createMaterialConsistencyFragment(state, german);
     const fragments = german ? [
@@ -42,7 +47,10 @@ export const garmentSection: PromptSectionProvider = {
       materialFragment,
       ...(materialConsistencyFragment === undefined ? [] : [materialConsistencyFragment]),
     ];
-    return [createResolvedSectionDraft(state, "garment", `${german ? BASELINE_DE : BASELINE_EN}\n`, fragments)];
+    const sectionText = !german && wideLegLinen
+      ? `OUTFIT AND ACCESSORIES\n${outfit} ${materialBehaviour}`
+      : german ? BASELINE_DE : BASELINE_EN;
+    return [createResolvedSectionDraft(state, "garment", `${sectionText}\n`, fragments)];
   },
 };
 
@@ -115,6 +123,11 @@ function isOpenVoileShirt(values: unknown): boolean {
     && readNestedItem(values, "upper", "kind") === "upperGarment.shirt"
     && readNestedItem(values, "upper", "color") === "color.white"
     && readNestedItem(values, "upper", "material") === "Voile";
+}
+
+function isWideLegLinenTrousers(values: unknown): boolean {
+  return readNestedItem(values, "lower", "kind") === "lowerGarment.wide_leg_trousers"
+    && readNestedItem(values, "lower", "material") === "material.linen";
 }
 
 function readNested(value: unknown, first: string, second: string): unknown {

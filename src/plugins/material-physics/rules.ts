@@ -10,6 +10,7 @@ const rules: readonly ConstraintRule[] = [
   tracedGarmentMaterial("upper"),
   tracedGarmentMaterial("lower"),
   tracedGarmentMaterial("footwear"),
+  lowerMaterialPresentationRule(),
   adaptivePhysicalContextRule(),
 ];
 export const materialPhysicsProvider: ConstraintProvider = { id: PLUGIN_ID, version: VERSION, sourcePluginId: PLUGIN_ID, rules: () => rules };
@@ -23,15 +24,51 @@ function tracedGarmentMaterial(garment: "upper" | "lower" | "footwear"): Constra
     conflictStrategy: "reject",
     description: `Preserves the selected ${garment} material.`,
     evaluate: ({ facts, resolvedValues }) => {
-      const explicitUpper = garment === "upper" ? nestedGarmentString(resolvedValues, "upper", "material") : undefined;
-      const material = explicitUpper ?? nestedGarmentString(facts.values, garment, "material");
-      const sourceField = explicitUpper !== undefined && topLevelString(facts.values, "tshirtMaterial") !== undefined
+      const explicit = nestedGarmentString(resolvedValues, garment, "material");
+      const material = explicit ?? nestedGarmentString(facts.values, garment, "material");
+      if (material === undefined) return [];
+      if (explicit !== undefined && garment === "lower" && topLevelString(facts.values, "pantsMaterial") !== undefined) {
+        return [{
+          path: `material.${garment}`,
+          sourceFields: ["pantsMaterial", "pantsMaterialMode"],
+          value: material,
+        }];
+      }
+      const sourceField = explicit !== undefined && garment === "upper" && topLevelString(facts.values, "tshirtMaterial") !== undefined
         ? "tshirtMaterial"
         : `garment.${garment}.material`;
-      return material === undefined ? [] : [{
+      return [{
         path: `material.${garment}`,
         sourceField,
         value: material,
+      }];
+    },
+  };
+}
+
+function lowerMaterialPresentationRule(): ConstraintRule {
+  return {
+    id: "material-physics.lower-presentation",
+    version: VERSION,
+    sourcePluginId: PLUGIN_ID,
+    phase: "constraints",
+    conflictStrategy: "reject",
+    description: "Preserves the explicit physical presentation of the selected lower garment.",
+    evaluate: ({ facts }) => {
+      const fields = [
+        "materialEngine.byGarment.pants.opacity",
+        "materialEngine.byGarment.pants.presentation",
+        "materialEngine.byGarment.pants.realism",
+        "materialEngine.byGarment.pants.surface",
+      ] as const;
+      const values = fields.map((path) => readString(facts.values, path));
+      if (values.every((value) => value === undefined)) return [];
+      if (values.some((value) => value === undefined)) throw new Error("Incomplete lower material presentation");
+      const [opacity, presentation, realism, surface] = values as [string, string, string, string];
+      return [{
+        path: "material.lowerPresentation",
+        sourceFields: [...fields],
+        value: { opacity, presentation, realism, surface },
       }];
     },
   };

@@ -26,6 +26,9 @@ const resolveGarmentMaterials = (input: unknown, reversed = false) => new Constr
 const OPAQUE_EN = "top: opaque fabric with fully covering material behavior; Photographic presentation is derived from the material and lighting.; automatically adapted material detail; material-appropriate surface response; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.\ntrousers: opaque fabric with fully covering material behavior; Photographic presentation is derived from the material and lighting.; automatically adapted material detail; material-appropriate surface response; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
 const VOILE_EN = "top: lightly translucent fabric with subtly visible transparency; Photographic presentation is derived from the material and lighting.; automatically adapted material detail; material-appropriate surface response; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
 const VOILE_DE = "Oberteil: leicht lichtdurchlässiger Stoff mit dezent erkennbarer Transparenz; Die fotografische Darstellung wird passend zu Material und Licht abgeleitet.; automatisch angepasster Materialdetailgrad; materialgerechte Oberfläche; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
+const LINEN_LOWER_EN = "trousers: opaque fabric with fully covering material behavior; The material property is rendered clearly and distinctly without unrealistic enhancement.; reference-grade material, fiber, and seam fidelity; matte surface with diffuse light scattering; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
+const ULTRA_DE = "natürliche Hautstruktur, einzelne Haarsträhnen, glaubwürdige Materialeigenschaften und leichte natürliche Asymmetrien. lokal variierende Details, natürliche Mikrofalten, präzise Nähte und realistische Lichtstreuung. Priorität auf vollständiger Anatomie, Füßen, Pose, Silhouette, Kleidung, Material und räumlicher Konsistenz bei realistischer Betrachtungsdistanz. natürliche Smartphone-Schärfung, dezentes HDR, realistische Sensorstruktur und keine Studioperfektion.";
+const REFERENCE_EN = "natural skin texture, individual hair strands, credible material properties, and subtle natural asymmetry. locally varying detail, natural micro-folds, precise seams, and realistic light scattering. prioritize complete anatomy, feet, pose, silhouette, clothing, material, and spatial consistency at a realistic viewing distance. maximum identity consistency, precise geometry, real-world scale, and reference-grade surface rendering. natural smartphone sharpening, subtle HDR, realistic sensor texture, and no studio-perfect rendering.";
 
 describe("adaptive realism and material physics plugins", () => {
   it("preserves a requested realism reference and derives fabric physics", async () => {
@@ -292,6 +295,82 @@ describe("adaptive realism and material physics plugins", () => {
     expect(state.trace.entries.find(({ path }) => path === "material.activeSlots")).toMatchObject({
       sourceFields: ["garment.lower.material", "garment.upper.material"],
     });
+  });
+
+  it("projects the explicit lower linen material and formulates its reference-grade physics", async () => {
+    const state = await resolveGarmentMaterials({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "English",
+      pants: "eine weite Leinenhose",
+      pantsMaterialMode: "Manuell",
+      pantsMaterial: "Leinen",
+      materialEngine: {
+        byGarment: {
+          pants: {
+            opacity: "materialOpacity.opaque",
+            presentation: "materialPresentation.clear",
+            realism: "materialRealism.reference",
+            surface: "materialSurface.matte",
+          },
+        },
+      },
+    });
+    const fragment = materialPhysicsSection.provide(state).flatMap((draft) => draft.fragments ?? [])
+      .find(({ id }) => id === "material.physics");
+
+    expect(state.values).toHaveProperty("garment.lower.kind", "lowerGarment.wide_leg_trousers");
+    expect(state.values).toHaveProperty("material.lower", "material.linen");
+    expect(state.values).toHaveProperty("material.lowerPresentation", {
+      opacity: "materialOpacity.opaque",
+      presentation: "materialPresentation.clear",
+      realism: "materialRealism.reference",
+      surface: "materialSurface.matte",
+    });
+    expect(state.trace.entries.find(({ path }) => path === "material.lower")).toMatchObject({
+      sourceFields: ["pantsMaterial", "pantsMaterialMode"],
+    });
+    expect(state.trace.entries.find(({ path }) => path === "material.lowerPresentation")).toMatchObject({
+      sourceFields: [
+        "materialEngine.byGarment.pants.opacity",
+        "materialEngine.byGarment.pants.presentation",
+        "materialEngine.byGarment.pants.realism",
+        "materialEngine.byGarment.pants.surface",
+      ],
+    });
+    expect(fragment?.text).toContain(LINEN_LOWER_EN);
+    expect(fragment?.traceIds).toContain("material.lowerPresentation:material-physics.lower-presentation");
+  });
+
+  it("resolves the explicit ultra realism level and formulates the complete German semantic unit", async () => {
+    const state = await resolveAdaptive({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "Deutsch",
+      realismEngine: { level: "realism.ultra" },
+    });
+    const fragment = adaptiveRealismSection.provide(state).flatMap((draft) => draft.fragments ?? [])
+      .find(({ id }) => id === "realism.adaptive");
+
+    expect(state.values).toHaveProperty("realism.level", "realism.ultra");
+    expect(state.trace.entries.find(({ path }) => path === "realism.level")).toMatchObject({
+      ruleId: "adaptive-realism.level",
+      sourceField: "realismEngine.level",
+    });
+    expect(fragment?.text).toBe(ULTRA_DE);
+    expect(fragment?.traceIds).toEqual(["realism.level:adaptive-realism.level"]);
+  });
+
+  it("materializes the complete English reference-realism unit from the resolved engine level", async () => {
+    const state = await resolveAdaptive({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "English",
+      realismEngine: { level: "realism.reference" },
+    });
+    const fragment = adaptiveRealismSection.provide(state).flatMap((draft) => draft.fragments ?? [])
+      .find(({ id }) => id === "realism.adaptive");
+
+    expect(state.values).toHaveProperty("realism.level", "realism.reference");
+    expect(fragment?.text).toBe(REFERENCE_EN);
+    expect(fragment?.traceIds).toEqual(["realism.level:adaptive-realism.level"]);
   });
 
   it("exposes adaptive-realism fragments with exact resolved traces", async () => {

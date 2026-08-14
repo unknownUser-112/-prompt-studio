@@ -38,6 +38,25 @@ const rules: readonly ConstraintRule[] = [
     },
   },
   {
+    id: "garment.lower-material",
+    version: VERSION,
+    sourcePluginId: PLUGIN_ID,
+    phase: "constraints",
+    conflictStrategy: "reject",
+    description: "Projects an explicit lower-garment material over the nested baseline.",
+    evaluate: ({ facts }) => {
+      const material = topLevelString(facts.values, "pantsMaterial");
+      const mode = topLevelString(facts.values, "pantsMaterialMode");
+      if (material === undefined || mode !== "Manuell") return [];
+      if (material !== "Leinen") throw new Error(`Unsupported explicit pants material: ${material}`);
+      return [{
+        path: "garment.lower.material",
+        sourceFields: ["pantsMaterial", "pantsMaterialMode"],
+        value: "material.linen",
+      }];
+    },
+  },
+  {
     id: "garment.outfit-build",
     version: VERSION,
     sourcePluginId: PLUGIN_ID,
@@ -79,6 +98,12 @@ function explicitGarmentItemValue(
   item: "upper" | "lower" | "footwear",
   field: "kind" | "color",
 ): { readonly sourceField: string; readonly value: string } | undefined {
+  if (item === "lower" && field === "kind") {
+    const pants = topLevelString(values, "pants");
+    if (pants === undefined) return undefined;
+    if (pants !== "eine weite Leinenhose") throw new Error(`Unsupported explicit pants selection: ${pants}`);
+    return { sourceField: "pants", value: "lowerGarment.wide_leg_trousers" };
+  }
   if (item !== "upper") return undefined;
   if (field === "kind") {
     const tshirt = topLevelString(values, "tshirt");

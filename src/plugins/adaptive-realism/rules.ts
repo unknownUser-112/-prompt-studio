@@ -6,6 +6,22 @@ const PLUGIN_ID = "adaptive-realism";
 const VERSION = "1.0.0";
 const rules: readonly ConstraintRule[] = [
   {
+    id: "adaptive-realism.level",
+    version: VERSION,
+    sourcePluginId: PLUGIN_ID,
+    phase: "constraints",
+    conflictStrategy: "reject",
+    description: "Projects an explicit adaptive-realism engine level without changing the capture-reference contract.",
+    evaluate: ({ facts }) => {
+      const level = nestedString(facts.values, "realismEngine", "level");
+      if (level === undefined) return [];
+      if (level !== "realism.ultra" && level !== "realism.reference") {
+        throw new Error(`Unsupported realism engine level: ${level}`);
+      }
+      return [{ path: "realism.level", sourceField: "realismEngine.level", value: level }];
+    },
+  },
+  {
     id: "adaptive-realism.reference", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Keeps an explicit realism reference traceable.",
     evaluate: ({ facts }) => typeof nestedString(facts.values, "realism", "reference") === "string" ? [{ path: "realism.reference", sourceField: "realism.reference", value: nestedString(facts.values, "realism", "reference")! }] : [],
   },

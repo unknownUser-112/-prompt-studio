@@ -117,6 +117,26 @@ describe("brand, garment and safety plugins", () => {
     expect(state.trace.entries.map(({ path }) => path)).toEqual(["garment.upper.color"]);
   });
 
+  it("projects the explicit wide-leg linen trousers over the nested lower-garment baseline", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      pants: "eine weite Leinenhose",
+      pantsMaterialMode: "Manuell",
+      pantsMaterial: "Leinen",
+    }, [garmentProvider]);
+
+    expect(state.values).toHaveProperty("garment.lower.kind", "lowerGarment.wide_leg_trousers");
+    expect(state.values).toHaveProperty("garment.lower.material", "material.linen");
+    expect(state.trace.entries.find(({ path }) => path === "garment.lower.kind")).toMatchObject({
+      ruleId: "garment.lower-kind",
+      sourceField: "pants",
+    });
+    expect(state.trace.entries.find(({ path }) => path === "garment.lower.material")).toMatchObject({
+      ruleId: "garment.lower-material",
+      sourceFields: ["pantsMaterial", "pantsMaterialMode"],
+    });
+  });
+
   it.each(["Deutsch", "English"])("exposes exact open-garment fragments without profile framing in %s", async (promptLanguage) => {
     const state = await resolve({
       ...createCanonicalProjectStateV5Values(),

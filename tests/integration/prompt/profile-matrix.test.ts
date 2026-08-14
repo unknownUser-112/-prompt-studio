@@ -454,4 +454,52 @@ describe("V600 profile matrix", () => {
 
     expect(new TextRenderer().render(document, createGeminiNaturalLayout(document, promptLanguage)).value).toBe(expected);
   });
+
+  it.each([
+    ["universal", "Universal", "material-physics.en"],
+    ["geminiNatural", "Gemini Natural", "material-physics.en"],
+    ["geminiPro", "Gemini Pro", "material-physics.en"],
+    ["universal", "Universal", "adaptive-realism.de"],
+    ["geminiNatural", "Gemini Natural", "adaptive-realism.de"],
+    ["geminiPro", "Gemini Pro", "adaptive-realism.de"],
+    ["universal", "Universal", "adaptive-realism.en"],
+    ["geminiNatural", "Gemini Natural", "adaptive-realism.en"],
+    ["geminiPro", "Gemini Pro", "adaptive-realism.en"],
+  ])("renders Batch-2 focal parity for %s / %s", async (profileId, profile, scenarioId) => {
+    const scenario = GOLDEN_SCENARIOS.find(({ id }) => id === scenarioId)!;
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile, step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const layout = profileId === "universal"
+      ? createUniversalLayout(document)
+      : profileId === "geminiNatural"
+        ? createGeminiNaturalLayout(document, promptLanguage)
+        : createGeminiProLayout(document, promptLanguage);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === profileId)!.output;
+
+    expect(new TextRenderer().render(document, layout).value).toBe(expected);
+  });
 });
