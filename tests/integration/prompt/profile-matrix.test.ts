@@ -21,10 +21,15 @@ import { modelBehaviourProvider } from "../../../src/plugins/model-behaviour/rul
 import { modelBehaviourSection } from "../../../src/plugins/model-behaviour/sections";
 import { sceneLightingProvider } from "../../../src/plugins/scene-lighting/rules";
 import { sceneLightingSection } from "../../../src/plugins/scene-lighting/sections";
+import { selfieProvider } from "../../../src/plugins/selfie/rules";
+import { selfieSection } from "../../../src/plugins/selfie/sections";
 import { createUniversalLayout } from "../../../src/profiles/universal";
 import { createGeminiNaturalLayout } from "../../../src/profiles/gemini-natural";
+import { createGeminiProLayout } from "../../../src/profiles/gemini-pro";
+import { createNanoBananaProLayout } from "../../../src/profiles/nano-banana-pro";
 import { TextRenderer } from "../../../src/renderers/text-renderer";
 import { createFixedRuntime } from "../../helpers/fixed-runtime";
+import { GOLDEN_SCENARIOS } from "../../golden/scenarios";
 
 interface GoldenEntry { readonly scenarioId: string; readonly profileId: string; readonly output: string }
 const matrix = JSON.parse(readFileSync("tests/golden/fixtures/v500.6.11/matrix.json", "utf8")) as { readonly entries: readonly GoldenEntry[] };
@@ -45,6 +50,7 @@ describe("V600 profile matrix", () => {
         materialPhysicsProvider,
         modelBehaviourProvider,
         sceneLightingProvider,
+        selfieProvider,
       ],
     );
     const document = new PromptAstBuilder().build(state, [
@@ -56,6 +62,7 @@ describe("V600 profile matrix", () => {
       materialPhysicsSection,
       modelBehaviourSection,
       sceneLightingSection,
+      selfieSection,
     ]);
     const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "universal")!.output;
 
@@ -77,6 +84,7 @@ describe("V600 profile matrix", () => {
         materialPhysicsProvider,
         modelBehaviourProvider,
         sceneLightingProvider,
+        selfieProvider,
       ],
     );
     const document = new PromptAstBuilder().build(state, [
@@ -88,6 +96,359 @@ describe("V600 profile matrix", () => {
       materialPhysicsSection,
       modelBehaviourSection,
       sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "geminiNatural")!.output;
+
+    expect(new TextRenderer().render(document, createGeminiNaturalLayout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it.each([
+    ["Deutsch", "baseline.de"],
+    ["English", "baseline.en"],
+  ])("renders the complete Gemini Pro baseline byte-identically for %s", async (promptLanguage, scenarioId) => {
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), promptLanguage, profile: "Gemini Pro", step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "geminiPro")!.output;
+
+    expect(new TextRenderer().render(document, createGeminiProLayout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it.each([
+    ["Deutsch", "baseline.de"],
+    ["English", "baseline.en"],
+  ])("renders the complete Nano Banana Pro baseline byte-identically in %s", async (promptLanguage, scenarioId) => {
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), promptLanguage, profile: "Nano Banana Pro", step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "nanoBananaPro")!.output;
+
+    expect(new TextRenderer().render(document, createNanoBananaProLayout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it.each([
+    ["Deutsch", "Pose und Ausdruck: frontal und aufrecht stehend, Gewicht locker auf einem Bein. Sie blickt leicht links an der Kamera vorbei und zeigt einen entspannten Ausdruck."],
+    ["English", "Pose and expression: Standing upright with weight resting naturally on one leg. She looks slightly past the camera and has a relaxed expression."],
+  ])("frames the complete pose.action fragment with the exact Nano Banana Pro prefix in %s", async (promptLanguage, expectedLine) => {
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), promptLanguage, profile: "Nano Banana Pro", step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const rendered = new TextRenderer().render(document, createNanoBananaProLayout(document, promptLanguage)).value;
+
+    expect(rendered).toContain(`\n${expectedLine}`);
+  });
+
+  it.each([
+    ["Deutsch", "Frisur: offen getragene"],
+    ["English", "Hairstyle: loose"],
+  ])("frames character.hairstyle with the exact Nano Banana Pro prefix in %s", async (promptLanguage, expectedLine) => {
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), promptLanguage, profile: "Nano Banana Pro", step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const rendered = new TextRenderer().render(document, createNanoBananaProLayout(document, promptLanguage)).value;
+
+    expect(rendered).toContain(`\n${expectedLine}`);
+  });
+
+  it.each([
+    ["compact", "character-sheet.compact.en", "referenceSheet.compact"],
+    ["standard", "character-sheet.en", "referenceSheet.standard"],
+  ])("renders the %s English character reference sheet byte-identically for Gemini Natural", async (_variant, scenarioId, sheetType) => {
+    const promptLanguage = "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      {
+        ...createCanonicalProjectStateV5Values(),
+        promptLanguage,
+        profile: "Gemini Natural",
+        step: 9,
+        referenceMode: {
+          enabled: true,
+          mode: "referenceMode.character_sheet",
+          sheetType,
+          layout: "referenceLayout.grid",
+        },
+      },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "geminiNatural")!.output;
+
+    expect(new TextRenderer().render(document, createGeminiNaturalLayout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it.each([
+    ["Deutsch", "single-reference.de"],
+    ["English", "single-reference.en"],
+  ])("renders the single-reference scenario byte-identically for Gemini Natural in %s", async (promptLanguage, scenarioId) => {
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      {
+        ...createCanonicalProjectStateV5Values(),
+        promptLanguage,
+        profile: "Gemini Natural",
+        step: 9,
+        referenceMode: {
+          enabled: true,
+          mode: "referenceMode.single_reference",
+          purpose: "referencePurpose.identity",
+          singleView: "referenceView.front",
+        },
+      },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "geminiNatural")!.output;
+
+    expect(new TextRenderer().render(document, createGeminiNaturalLayout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it.each([
+    ["enabled front-camera", "selfie.front-enabled.en", true, "selfie.front"],
+    ["explicitly disabled", "selfie.disabled.en", false, "selfie.none"],
+  ])("renders the %s selfie scenario byte-identically for Gemini Natural", async (_variant, scenarioId, enabled, type) => {
+    const promptLanguage = "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      {
+        ...createCanonicalProjectStateV5Values(),
+        promptLanguage,
+        profile: "Gemini Natural",
+        step: 9,
+        selfieMode: { enabled, type, phoneVisibility: "selfiePhone.auto" },
+      },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "geminiNatural")!.output;
+
+    expect(new TextRenderer().render(document, createGeminiNaturalLayout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it("renders the positive additional-person scenario byte-identically for Gemini Natural", async () => {
+    const promptLanguage = "English";
+    const scenarioId = "additional-person.en";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      {
+        ...createCanonicalProjectStateV5Values(),
+        promptLanguage,
+        profile: "Gemini Natural",
+        step: 9,
+        additionalPerson: {
+          enabled: true,
+          type: "additionalPerson.randomWoman",
+          position: "additionalPersonPosition.beside",
+          activity: "additionalPersonActivity.standing",
+        },
+      },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "geminiNatural")!.output;
+
+    expect(new TextRenderer().render(document, createGeminiNaturalLayout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it("renders the open-garment scenario byte-identically for Gemini Natural", async () => {
+    const promptLanguage = "English";
+    const scenarioId = "garment.open.en";
+    const scenario = GOLDEN_SCENARIOS.find(({ id }) => id === scenarioId)!;
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      {
+        ...createCanonicalProjectStateV5Values(),
+        ...scenario.input,
+        promptLanguage,
+        profile: "Gemini Natural",
+        step: 9,
+      },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
     ]);
     const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "geminiNatural")!.output;
 

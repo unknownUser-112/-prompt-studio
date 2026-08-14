@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { brandProvider } from "../../../../src/plugins/brand/rules";
 import { garmentProvider } from "../../../../src/plugins/garment/rules";
 import { garmentSection } from "../../../../src/plugins/garment/sections";
+import { materialPhysicsProvider } from "../../../../src/plugins/material-physics/rules";
 import { safetyProvider } from "../../../../src/plugins/safety/rules";
 import type { ConstraintProvider } from "../../../../src/domain/contracts/constraints/provider";
 import { ConstraintEngine } from "../../../../src/domain/engines/constraint-engine";
@@ -69,6 +70,78 @@ describe("brand, garment and safety plugins", () => {
     expect(second).toEqual(first);
   });
 
+  it("resolves the explicit open-shirt facts over the canonical baseline without competing assignments", async () => {
+    const input = {
+      ...createCanonicalProjectStateV5Values(),
+      tshirt: "ein offen getragenes, luftiges Voile-Hemd mit feiner Webstruktur",
+      tshirtColor: "Weiß",
+      tshirtMaterial: "Voile",
+      bra: "kein BH sichtbar / nicht Teil des Outfits",
+      sweater: "kein Pullover",
+      jacket: "keine Jacke",
+      outfitBuild: "Einzelne saubere Schicht",
+    };
+
+    const state = await resolve(input, [garmentProvider]);
+
+    expect(state.values).toMatchObject({
+      garment: {
+        upper: { kind: "upperGarment.shirt", color: "color.white", material: "Voile" },
+        open: true,
+        upperLayer: "none",
+        outfitBuild: "outfitBuild.single_clean_layer",
+      },
+    });
+    expect(state.trace.entries.filter(({ path }) => [
+      "garment.upper.kind",
+      "garment.upper.color",
+      "garment.upper.material",
+      "garment.open",
+      "garment.upperLayer",
+      "garment.outfitBuild",
+    ].includes(path)).map(({ path, ruleId, sourceField, sourceFields }) => ({ path, ruleId, sourceField, sourceFields }))).toEqual([
+      { path: "garment.open", ruleId: "garment.open-state", sourceField: "tshirt", sourceFields: undefined },
+      { path: "garment.outfitBuild", ruleId: "garment.outfit-build", sourceField: "outfitBuild", sourceFields: undefined },
+      { path: "garment.upper.color", ruleId: "garment.upper-color", sourceField: "tshirtColor", sourceFields: undefined },
+      { path: "garment.upper.kind", ruleId: "garment.upper-kind", sourceField: "tshirt", sourceFields: undefined },
+      { path: "garment.upper.material", ruleId: "garment.upper-material", sourceField: "tshirtMaterial", sourceFields: undefined },
+      { path: "garment.upperLayer", ruleId: "garment.upper-layer", sourceField: undefined, sourceFields: ["bra", "jacket", "sweater"] },
+    ]);
+    expect(new Set(state.trace.entries.map(({ path }) => path)).size).toBe(state.trace.entries.length);
+  });
+
+  it("does not synthesize open-state or layer-presence without their explicit facts", async () => {
+    const state = await resolve({ tshirtColor: "Weiß" }, [garmentProvider]);
+
+    expect(state.values).toEqual({ garment: { upper: { color: "color.white" } } });
+    expect(state.trace.entries.map(({ path }) => path)).toEqual(["garment.upper.color"]);
+  });
+
+  it.each(["Deutsch", "English"])("exposes exact open-garment fragments without profile framing in %s", async (promptLanguage) => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage,
+      tshirt: "ein offen getragenes, luftiges Voile-Hemd mit feiner Webstruktur",
+      tshirtColor: "Weiß",
+      tshirtMaterial: "Voile",
+      bra: "kein BH sichtbar / nicht Teil des Outfits",
+      sweater: "kein Pullover",
+      jacket: "keine Jacke",
+      outfitBuild: "Einzelne saubere Schicht",
+    }, [garmentProvider]);
+    const draft = garmentSection.provide(state)[0]!;
+    const fragments = draft.fragments ?? [];
+
+    expect(fragments.map(({ id }) => id)).toContain("garment.upper-body");
+    expect(fragments.map(({ id }) => id)).toContain("garment.layering");
+    expect(fragments.map(({ id }) => id)).toContain("garment.state");
+    expect(fragments.find(({ id }) => id === "garment.upper-body")?.text).toMatch(promptLanguage === "Deutsch" ? /weiß/iu : /white/iu);
+    expect(fragments.find(({ id }) => id === "garment.upper-body")?.text).toMatch(/voile/iu);
+    expect(fragments.find(({ id }) => id === "garment.state")?.text).toContain(promptLanguage === "Deutsch" ? "offen" : "worn open");
+    expect(fragments.find(({ id }) => id === "garment.layering")?.text).toMatch(promptLanguage === "Deutsch" ? /kein separates Oberkörperkleidungsstück/iu : /No separate upper-body garment/iu);
+    expect(fragments.filter(({ id }) => ["garment.upper-body", "garment.layering", "garment.state"].includes(id)).every(({ text, traceIds }) => text.trim().length > 0 && traceIds.length > 0)).toBe(true);
+  });
+
   it.each(["Deutsch", "English"])("exposes traced outfit and layering fragments without profile headings in %s", async (promptLanguage) => {
     const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage }, [garmentProvider]);
     const first = garmentSection.provide(state)[0]!;
@@ -84,6 +157,29 @@ describe("brand, garment and safety plugins", () => {
         ? first.traceIds
         : first.traceIds.filter((id) => !id.startsWith("garment.outfitBuild:")),
     ));
+  });
+
+  it.each([
+    ["Deutsch", "Materialreflexionen, Falten, Nähte und Materialdicke folgen der Körperhaltung und der Schwerkraft."],
+    ["English", "Fabric tension, folds, seams, reflections, and material thickness respond naturally to posture, movement, gravity, and wind."],
+  ])("exposes exact material consistency from active resolved materials in %s", async (promptLanguage, expected) => {
+    const state = await resolve(
+      { ...createCanonicalProjectStateV5Values(), promptLanguage },
+      [garmentProvider, materialPhysicsProvider],
+    );
+    const first = garmentSection.provide(state)[0]!;
+    const second = garmentSection.provide(state)[0]!;
+    const fragment = first.fragments?.find(({ id }) => id === "garment.material-consistency");
+
+    expect(first).toEqual(second);
+    expect(fragment?.text).toBe(expected);
+    expect(fragment?.text.trim().length).toBeGreaterThan(0);
+    expect(fragment?.text).not.toContain("OUTFIT AND MATERIALS");
+    expect(fragment?.traceIds).toEqual([
+      "material.activeSlots:material-physics.active-material-slots",
+      "material.lower:material-physics.lower-material",
+      "material.upper:material-physics.upper-material",
+    ]);
   });
 });
 

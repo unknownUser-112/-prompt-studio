@@ -4,14 +4,39 @@ const PLUGIN_ID = "garment";
 const VERSION = "1.0.0";
 const rules: readonly ConstraintRule[] = [
   { id: "garment.outer", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Preserves the selected outer garment.", evaluate: ({ facts }) => { const outer = nestedString(facts.values, "garment", "outer"); return outer === undefined ? [] : [{ path: "garment.outer", sourceField: "garment.outer", value: outer }]; } },
-  { id: "garment.upper-layer", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Preserves the selected upper layer.", evaluate: ({ facts }) => { const upperLayer = nestedString(facts.values, "garment", "upperLayer"); return upperLayer === undefined ? [] : [{ path: "garment.upperLayer", sourceField: "garment.upperLayer", value: upperLayer }]; } },
-  { id: "garment.open-state", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Open outer garments require an explicit upper layer.", evaluate: ({ facts }) => { const outer = nestedString(facts.values, "garment", "outer"); if (outer === undefined || !/\bopen\b/iu.test(outer)) return []; if (nestedString(facts.values, "garment", "upperLayer") === undefined) throw new Error("Open garment requires an upper layer"); return [{ path: "garment.open", sourceField: "garment.outer", value: true }]; } },
+  { id: "garment.upper-layer", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Preserves the selected upper layer.", evaluate: ({ facts }) => {
+    if (hasExplicitNoUpperLayer(facts.values)) {
+      return [{ path: "garment.upperLayer", sourceFields: ["bra", "jacket", "sweater"], value: "none" }];
+    }
+    const upperLayer = nestedString(facts.values, "garment", "upperLayer");
+    return upperLayer === undefined ? [] : [{ path: "garment.upperLayer", sourceField: "garment.upperLayer", value: upperLayer }];
+  } },
+  { id: "garment.open-state", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Open outer garments require an explicit upper layer.", evaluate: ({ facts }) => {
+    const tshirt = topLevelString(facts.values, "tshirt");
+    if (tshirt !== undefined) return /offen getragen/iu.test(tshirt) ? [{ path: "garment.open", sourceField: "tshirt", value: true }] : [];
+    const outer = nestedString(facts.values, "garment", "outer");
+    if (outer === undefined || !/\bopen\b/iu.test(outer)) return [];
+    if (nestedString(facts.values, "garment", "upperLayer") === undefined) throw new Error("Open garment requires an upper layer");
+    return [{ path: "garment.open", sourceField: "garment.outer", value: true }];
+  } },
   tracedGarmentItemFact("upper", "kind"),
   tracedGarmentItemFact("upper", "color"),
   tracedGarmentItemFact("lower", "kind"),
   tracedGarmentItemFact("lower", "color"),
   tracedGarmentItemFact("footwear", "kind"),
   tracedGarmentItemFact("footwear", "color"),
+  {
+    id: "garment.upper-material",
+    version: VERSION,
+    sourcePluginId: PLUGIN_ID,
+    phase: "constraints",
+    conflictStrategy: "reject",
+    description: "Preserves the explicit upper-garment material.",
+    evaluate: ({ facts }) => {
+      const value = topLevelString(facts.values, "tshirtMaterial");
+      return value === undefined ? [] : [{ path: "garment.upper.material", sourceField: "tshirtMaterial", value }];
+    },
+  },
   {
     id: "garment.outfit-build",
     version: VERSION,
@@ -20,6 +45,8 @@ const rules: readonly ConstraintRule[] = [
     conflictStrategy: "reject",
     description: "Preserves the selected outfit build.",
     evaluate: ({ facts }) => {
+      const explicit = topLevelString(facts.values, "outfitBuild");
+      if (explicit !== undefined) return [{ path: "garment.outfitBuild", sourceField: "outfitBuild", value: "outfitBuild.single_clean_layer" }];
       const value = nestedString(facts.values, "garment", "outfitBuild");
       return value === undefined ? [] : [{ path: "garment.outfitBuild", sourceField: "garment.outfitBuild", value }];
     },
@@ -36,14 +63,41 @@ function tracedGarmentItemFact(item: "upper" | "lower" | "footwear", field: "kin
     conflictStrategy: "reject",
     description: `Preserves garment.${item}.${field}.`,
     evaluate: ({ facts }) => {
-      const value = nestedItemString(facts.values, item, field);
+      const explicit = explicitGarmentItemValue(facts.values, item, field);
+      const value = explicit?.value ?? nestedItemString(facts.values, item, field);
       return value === undefined ? [] : [{
         path: `garment.${item}.${field}`,
-        sourceField: `garment.${item}.${field}`,
+        sourceField: explicit?.sourceField ?? `garment.${item}.${field}`,
         value,
       }];
     },
   };
+}
+
+function explicitGarmentItemValue(
+  values: unknown,
+  item: "upper" | "lower" | "footwear",
+  field: "kind" | "color",
+): { readonly sourceField: string; readonly value: string } | undefined {
+  if (item !== "upper") return undefined;
+  if (field === "kind") {
+    const tshirt = topLevelString(values, "tshirt");
+    return tshirt === undefined ? undefined : { sourceField: "tshirt", value: "upperGarment.shirt" };
+  }
+  const color = topLevelString(values, "tshirtColor");
+  return color === undefined ? undefined : { sourceField: "tshirtColor", value: color === "Weiß" ? "color.white" : color };
+}
+
+function hasExplicitNoUpperLayer(values: unknown): boolean {
+  return topLevelString(values, "bra") === "kein BH sichtbar / nicht Teil des Outfits"
+    && topLevelString(values, "sweater") === "kein Pullover"
+    && topLevelString(values, "jacket") === "keine Jacke";
+}
+
+function topLevelString(value: unknown, field: string): string | undefined {
+  if (value === null || Array.isArray(value) || typeof value !== "object") return undefined;
+  const candidate = (value as Readonly<Record<string, unknown>>)[field];
+  return typeof candidate === "string" ? candidate : undefined;
 }
 
 function nestedString(value: unknown, first: string, second: string): string | undefined { if (value === null || Array.isArray(value) || typeof value !== "object") return undefined; const child = (value as Readonly<Record<string, unknown>>)[first]; return child !== null && !Array.isArray(child) && typeof child === "object" && typeof (child as Readonly<Record<string, unknown>>)[second] === "string" ? (child as Readonly<Record<string, unknown>>)[second] as string : undefined; }

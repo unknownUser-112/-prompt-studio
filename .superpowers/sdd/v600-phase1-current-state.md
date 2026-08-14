@@ -2,9 +2,9 @@
 
 Branch: codex/v600-phase1-foundation
 Last completed task: 15
-Next task: 16
+Current task: 16 (IN PROGRESS)
 Work package: D
-Last commit: Pending before Project State V4 remediation commit
+Last commit: Task 16 parity-remediation checkpoint pending
 Phase 2: LOCKED
 V500 references: IMMUTABLE
 Architecture baseline: UNCHANGED
@@ -28,10 +28,15 @@ Review status: Task 16A.2 ONE ROUND; two blocking findings fixed
 - Chromium Blob and WebKit non-Blob IndexedDB: PASS; no production workaround
 - Recheck the exception when the official WebKit build changes
 - Typecheck: PASS
-- npm run verify: PASS
+- npm run verify: 607 PASS / 2 documented RC-17 parity FAIL; intermediate Task-16 checkpoint exception only
 - git diff --check: PASS
 - Golden Master: UNCHANGED
 - Task 16 status: IN PROGRESS
+- Task 16 matrix: 29 PASS / 187 RED / 216 TOTAL
+- Task 16 repaired root causes: RC-01 Scene/Lighting weather context; RC-02 canonical Character/Expression resolution
+- Task 16 active root causes: RC-03 through RC-24
+- Task 16 next repair batch: RC-03 Lower garment/material projection; RC-04 Ultra realism projection; RC-05 Reference realism fragments
+- RC-06 85-mm camera projection remains reserved for the later Camera/Brand batch
 - Project State Migration: V1→V2→V3→V4 COMPLETE
 - Baseline remediation: COMPLETE
 - V4 remediation regression set: 93/93 PASS

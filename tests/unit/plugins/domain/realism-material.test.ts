@@ -8,6 +8,7 @@ import { ConstraintEngine } from "../../../../src/domain/engines/constraint-engi
 import { createResolvedStateBuilder } from "../../../../src/domain/engines/resolved-state-builder";
 import { createFixedRuntime } from "../../../helpers/fixed-runtime";
 import { createCanonicalProjectStateV5Values } from "../../../../src/domain/entities/project-factory";
+import { garmentProvider } from "../../../../src/plugins/garment/rules";
 
 const resolve = (input: unknown) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(input, [materialPhysicsProvider, adaptiveRealismProvider]);
 const resolveMaterials = (input: unknown, reversed = false) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
@@ -18,6 +19,13 @@ const resolveAdaptive = (input: unknown, reversed = false) => new ConstraintEngi
   input,
   reversed ? [materialPhysicsProvider, adaptiveRealismProvider] : [adaptiveRealismProvider, materialPhysicsProvider],
 );
+const resolveGarmentMaterials = (input: unknown, reversed = false) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+  input,
+  reversed ? [materialPhysicsProvider, garmentProvider] : [garmentProvider, materialPhysicsProvider],
+);
+const OPAQUE_EN = "top: opaque fabric with fully covering material behavior; Photographic presentation is derived from the material and lighting.; automatically adapted material detail; material-appropriate surface response; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.\ntrousers: opaque fabric with fully covering material behavior; Photographic presentation is derived from the material and lighting.; automatically adapted material detail; material-appropriate surface response; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
+const VOILE_EN = "top: lightly translucent fabric with subtly visible transparency; Photographic presentation is derived from the material and lighting.; automatically adapted material detail; material-appropriate surface response; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
+const VOILE_DE = "Oberteil: leicht lichtdurchlässiger Stoff mit dezent erkennbarer Transparenz; Die fotografische Darstellung wird passend zu Material und Licht abgeleitet.; automatisch angepasster Materialdetailgrad; materialgerechte Oberfläche; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
 
 describe("adaptive realism and material physics plugins", () => {
   it("preserves a requested realism reference and derives fabric physics", async () => {
@@ -78,7 +86,7 @@ describe("adaptive realism and material physics plugins", () => {
     const normal = await resolveMaterials(input);
     const reversed = await resolveMaterials(input, true);
 
-    expect(normal.values).toEqual({ material: { upper: "material.cotton" } });
+    expect(normal.values).toEqual({ material: { activeSlots: ["upper"], upper: "material.cotton" } });
     expect(reversed).toEqual(normal);
   });
 
@@ -211,9 +219,79 @@ describe("adaptive realism and material physics plugins", () => {
     expect(first).toEqual(second);
     expect(material?.text).not.toMatch(/^ADAPTIVE/u);
     expect(context?.text).not.toMatch(/^ADAPTIVE/u);
-    expect(material?.traceIds).toHaveLength(3);
+    expect(material?.traceIds).toEqual([
+      "material.activeSlots:material-physics.active-material-slots",
+      "material.lower:material-physics.lower-material",
+      "material.upper:material-physics.upper-material",
+    ]);
     expect(context?.traceIds).toEqual([contextTrace.id]);
     expect(contextTrace).toHaveProperty("sourceFields");
+  });
+
+  it.each([
+    ["English", VOILE_EN],
+    ["Deutsch", VOILE_DE],
+  ])("formulates resolved Voile without an opaque fallback in %s", async (promptLanguage, expected) => {
+    const state = await resolveMaterials({ garment: { upper: { material: "Voile" } }, promptLanguage });
+    const first = materialPhysicsSection.provide(state);
+    const second = materialPhysicsSection.provide(state);
+    const fragment = first.flatMap((draft) => draft.fragments ?? []).find(({ id }) => id === "material.physics");
+
+    expect(fragment?.text).toBe(expected);
+    expect(fragment?.text).not.toContain(promptLanguage === "Deutsch" ? "blickdichter Stoff" : "opaque fabric");
+    expect(fragment?.traceIds).toEqual([
+      "material.activeSlots:material-physics.active-material-slots",
+      "material.upper:material-physics.upper-material",
+    ]);
+    expect(second).toEqual(first);
+  });
+
+  it("keeps the resolved opaque baseline byte-identical without unused footwear provenance", async () => {
+    const state = await resolveMaterials({ ...createCanonicalProjectStateV5Values(), promptLanguage: "English" });
+    const fragment = materialPhysicsSection.provide(state).flatMap((draft) => draft.fragments ?? []).find(({ id }) => id === "material.physics");
+
+    expect(fragment?.text).toBe(OPAQUE_EN);
+    expect(fragment?.traceIds).toEqual([
+      "material.activeSlots:material-physics.active-material-slots",
+      "material.lower:material-physics.lower-material",
+      "material.upper:material-physics.upper-material",
+    ]);
+  });
+
+  it("binds the active physical material slots from resolved garment selections", async () => {
+    const input = {
+      ...createCanonicalProjectStateV5Values(),
+      tshirt: "ein offen getragenes, luftiges Voile-Hemd mit feiner Webstruktur",
+      tshirtMaterial: "Voile",
+      lowerGarmentCategoryId: "lowerGarment.skirt",
+    };
+    const first = await resolveGarmentMaterials(input);
+    const second = await resolveGarmentMaterials(input, true);
+    const fragment = materialPhysicsSection.provide(first).flatMap((draft) => draft.fragments ?? []).find(({ id }) => id === "material.physics");
+
+    expect(first.values).toMatchObject({
+      garment: { upper: { material: "Voile" } },
+      material: { activeSlots: ["upper"], upper: "Voile", lower: "material.denim" },
+    });
+    expect(first.trace.entries.find(({ path }) => path === "material.activeSlots")).toMatchObject({
+      id: "material.activeSlots:material-physics.active-material-slots",
+      sourceFields: ["lowerGarmentCategoryId", "tshirtMaterial"],
+    });
+    expect(fragment?.text).toBe(VOILE_EN);
+    expect(fragment?.traceIds).toEqual([
+      "material.activeSlots:material-physics.active-material-slots",
+      "material.upper:material-physics.upper-material",
+    ]);
+    expect(second).toEqual(first);
+  });
+
+  it("keeps upper and lower physical material slots active for the canonical baseline", async () => {
+    const state = await resolveGarmentMaterials(createCanonicalProjectStateV5Values());
+
+    expect(state.values).toHaveProperty("material.activeSlots", ["upper", "lower"]);
+    expect(state.trace.entries.find(({ path }) => path === "material.activeSlots")).toMatchObject({
+      sourceFields: ["garment.lower.material", "garment.upper.material"],
+    });
   });
 
   it("exposes adaptive-realism fragments with exact resolved traces", async () => {

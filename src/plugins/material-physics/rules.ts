@@ -6,6 +6,7 @@ const VERSION = "1.0.0";
 const rules: readonly ConstraintRule[] = [
   { id: "material-physics.material", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Preserves the selected garment material.", evaluate: ({ facts }) => { const material = nestedString(facts.values, "garment", "material"); return material === undefined ? [] : [{ path: "material.fabric", sourceField: "garment.material", value: material }]; } },
   { id: "material-physics.denim-physics", version: VERSION, sourcePluginId: PLUGIN_ID, phase: "constraints", conflictStrategy: "reject", description: "Derives denim fold behaviour from the selected material.", evaluate: ({ facts }) => nestedString(facts.values, "garment", "material") === "Denim" ? [{ path: "material.physics", sourceField: "garment.material", value: "structured natural folds" }] : [] },
+  activeMaterialSlotsRule(),
   tracedGarmentMaterial("upper"),
   tracedGarmentMaterial("lower"),
   tracedGarmentMaterial("footwear"),
@@ -21,13 +22,48 @@ function tracedGarmentMaterial(garment: "upper" | "lower" | "footwear"): Constra
     phase: "constraints",
     conflictStrategy: "reject",
     description: `Preserves the selected ${garment} material.`,
-    evaluate: ({ facts }) => {
-      const material = nestedGarmentString(facts.values, garment, "material");
+    evaluate: ({ facts, resolvedValues }) => {
+      const explicitUpper = garment === "upper" ? nestedGarmentString(resolvedValues, "upper", "material") : undefined;
+      const material = explicitUpper ?? nestedGarmentString(facts.values, garment, "material");
+      const sourceField = explicitUpper !== undefined && topLevelString(facts.values, "tshirtMaterial") !== undefined
+        ? "tshirtMaterial"
+        : `garment.${garment}.material`;
       return material === undefined ? [] : [{
         path: `material.${garment}`,
-        sourceField: `garment.${garment}.material`,
+        sourceField,
         value: material,
       }];
+    },
+  };
+}
+
+function activeMaterialSlotsRule(): ConstraintRule {
+  return {
+    id: "material-physics.active-material-slots",
+    version: VERSION,
+    sourcePluginId: PLUGIN_ID,
+    phase: "constraints",
+    conflictStrategy: "reject",
+    description: "Selects the resolved upper and lower material slots that contribute physical-material output.",
+    evaluate: ({ facts, resolvedValues }) => {
+      const explicitUpper = nestedGarmentString(resolvedValues, "upper", "material");
+      const hasExplicitLowerSelection = topLevelString(facts.values, "lowerGarmentCategoryId") !== undefined;
+      if (explicitUpper !== undefined && hasExplicitLowerSelection) {
+        return [{
+          path: "material.activeSlots",
+          sourceFields: ["lowerGarmentCategoryId", "tshirtMaterial"],
+          value: ["upper"],
+        }];
+      }
+      const slots = [
+        nestedGarmentString(facts.values, "upper", "material") === undefined ? undefined : "upper",
+        nestedGarmentString(facts.values, "lower", "material") === undefined ? undefined : "lower",
+      ].filter((slot): slot is string => slot !== undefined);
+      const sources = slots.map((slot) => `garment.${slot}.material`);
+      if (slots.length === 0) return [];
+      return sources.length === 1
+        ? [{ path: "material.activeSlots", sourceField: sources[0]!, value: slots }]
+        : [{ path: "material.activeSlots", sourceFields: sources as [string, string, ...string[]], value: slots }];
     },
   };
 }
@@ -41,6 +77,12 @@ function nestedGarmentString(value: unknown, garment: string, field: string): st
   const item = (garmentRoot as Readonly<Record<string, unknown>>)[garment];
   if (item === null || Array.isArray(item) || typeof item !== "object") return undefined;
   const candidate = (item as Readonly<Record<string, unknown>>)[field];
+  return typeof candidate === "string" ? candidate : undefined;
+}
+
+function topLevelString(value: unknown, field: string): string | undefined {
+  if (value === null || Array.isArray(value) || typeof value !== "object") return undefined;
+  const candidate = (value as Readonly<Record<string, unknown>>)[field];
   return typeof candidate === "string" ? candidate : undefined;
 }
 
