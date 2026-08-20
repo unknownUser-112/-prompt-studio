@@ -27,6 +27,7 @@ const OPAQUE_EN = "top: opaque fabric with fully covering material behavior; Pho
 const VOILE_EN = "top: lightly translucent fabric with subtly visible transparency; Photographic presentation is derived from the material and lighting.; automatically adapted material detail; material-appropriate surface response; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
 const VOILE_DE = "Oberteil: leicht lichtdurchlässiger Stoff mit dezent erkennbarer Transparenz; Die fotografische Darstellung wird passend zu Material und Licht abgeleitet.; automatisch angepasster Materialdetailgrad; materialgerechte Oberfläche; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
 const LINEN_LOWER_EN = "trousers: opaque fabric with fully covering material behavior; The material property is rendered clearly and distinctly without unrealistic enhancement.; reference-grade material, fiber, and seam fidelity; matte surface with diffuse light scattering; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
+const ORGANZA_UPPER_DE = "Oberteil: leicht lichtdurchlässiger Stoff mit dezent erkennbarer Transparenz; Die Materialeigenschaft wird unter realistischem Licht natürlich und eindeutig sichtbar.; hochwertige Faser-, Naht- und Faltendetails; leicht glänzende Oberfläche mit kontrollierten Reflexionen; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.";
 const ULTRA_DE = "natürliche Hautstruktur, einzelne Haarsträhnen, glaubwürdige Materialeigenschaften und leichte natürliche Asymmetrien. lokal variierende Details, natürliche Mikrofalten, präzise Nähte und realistische Lichtstreuung. Priorität auf vollständiger Anatomie, Füßen, Pose, Silhouette, Kleidung, Material und räumlicher Konsistenz bei realistischer Betrachtungsdistanz. natürliche Smartphone-Schärfung, dezentes HDR, realistische Sensorstruktur und keine Studioperfektion.";
 const REFERENCE_EN = "natural skin texture, individual hair strands, credible material properties, and subtle natural asymmetry. locally varying detail, natural micro-folds, precise seams, and realistic light scattering. prioritize complete anatomy, feet, pose, silhouette, clothing, material, and spatial consistency at a realistic viewing distance. maximum identity consistency, precise geometry, real-world scale, and reference-grade surface rendering. natural smartphone sharpening, subtle HDR, realistic sensor texture, and no studio-perfect rendering.";
 
@@ -339,6 +340,67 @@ describe("adaptive realism and material physics plugins", () => {
     });
     expect(fragment?.text).toContain(LINEN_LOWER_EN);
     expect(fragment?.traceIds).toContain("material.lowerPresentation:material-physics.lower-presentation");
+  });
+
+  it("projects the explicit upper presentation with exact multi-source provenance and detailed German physics", async () => {
+    const input = {
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "Deutsch",
+      tshirt: "eine offen getragene Organza-Bluse",
+      tshirtMaterial: "Organza",
+      lowerGarmentCategoryId: "lowerGarment.skirt",
+      materialEngine: {
+        byGarment: {
+          tshirt: {
+            opacity: "materialOpacity.light_translucent",
+            presentation: "materialPresentation.natural",
+            realism: "materialRealism.premium",
+            surface: "materialSurface.subtle_gloss",
+          },
+        },
+      },
+    };
+    const first = await resolveGarmentMaterials(input);
+    const second = await resolveGarmentMaterials(input);
+    const fragment = materialPhysicsSection.provide(first).flatMap((draft) => draft.fragments ?? [])
+      .find(({ id }) => id === "material.physics");
+
+    expect(first.values).toHaveProperty("material.upper", "Organza");
+    expect(first.values).toHaveProperty("material.upperPresentation", {
+      opacity: "materialOpacity.light_translucent",
+      presentation: "materialPresentation.natural",
+      realism: "materialRealism.premium",
+      surface: "materialSurface.subtle_gloss",
+    });
+    expect(first.trace.entries.find(({ path }) => path === "material.upperPresentation")).toMatchObject({
+      sourceFields: [
+        "materialEngine.byGarment.tshirt.opacity",
+        "materialEngine.byGarment.tshirt.presentation",
+        "materialEngine.byGarment.tshirt.realism",
+        "materialEngine.byGarment.tshirt.surface",
+      ],
+    });
+    expect(fragment?.text).toBe(ORGANZA_UPPER_DE);
+    expect(fragment?.traceIds).toEqual([
+      "material.activeSlots:material-physics.active-material-slots",
+      "material.upper:material-physics.upper-material",
+      "material.upperPresentation:material-physics.upper-presentation",
+    ]);
+    expect(materialPhysicsSection.provide(second)).toEqual(materialPhysicsSection.provide(first));
+  });
+
+  it("does not invent upper presentation details without explicit upper presentation facts", async () => {
+    const state = await resolveGarmentMaterials({
+      garment: { upper: { material: "Organza" } },
+      promptLanguage: "Deutsch",
+    });
+    const fragment = materialPhysicsSection.provide(state).flatMap((draft) => draft.fragments ?? [])
+      .find(({ id }) => id === "material.physics");
+
+    expect(state.values).not.toHaveProperty("material.upperPresentation");
+    expect(fragment?.text).toBe(VOILE_DE);
+    expect(fragment?.text).not.toContain("hochwertige Faser-, Naht- und Faltendetails");
+    expect(fragment?.traceIds).not.toContain("material.upperPresentation:material-physics.upper-presentation");
   });
 
   it("resolves the explicit ultra realism level and formulates the complete German semantic unit", async () => {

@@ -40,7 +40,7 @@ export function createUniversalLayout(
   promptLanguage: PromptLanguage,
 ): ProfileLayout {
   const sectionsBySlot = new Map(document.sections.map((section) => [section.slotId, section]));
-  const sections = UNIVERSAL_SLOT_ORDER.flatMap((slotId) => {
+  const baselineSections = UNIVERSAL_SLOT_ORDER.flatMap((slotId) => {
     const section = sectionsBySlot.get(slotId);
     return section === undefined ? [] : [{ section, slotId }];
   }).map(({ section, slotId }, order) => ({
@@ -51,8 +51,17 @@ export function createUniversalLayout(
   const german = promptLanguage === "Deutsch";
   const referenceSheet = hasFragment(document, "character.reference-sheet");
   const singleReference = hasFragment(document, "character.single-reference");
+  const selfie = hasFragment(document, "selfie.binding");
+  const openGarment = hasFragment(document, "garment.state");
+  const openOrganza = openGarment && hasFragment(document, "garment.outfit-build");
   const execution = document.sections.some((section) => section.fragments.some(({ id }) => id === "execution.image-generation"));
-  const baselineBlocks = sections.map((section) => ({
+  const selfieSection = selfie
+    ? document.sections.find((section) => section.fragments.some(({ id }) => id === "selfie.binding"))
+    : undefined;
+  const sections = selfieSection === undefined
+    ? baselineSections
+    : [...baselineSections, { sectionId: selfieSection.id, order: baselineSections.length }];
+  const baselineBlocks = baselineSections.map((section) => ({
     kind: "section" as const,
     sectionId: section.sectionId,
     separatorBefore: section.separatorBefore,
@@ -61,14 +70,58 @@ export function createUniversalLayout(
     ? referenceSheetBlocks(german)
     : singleReference
       ? singleReferenceBlocks(baselineBlocks, german)
-      : baselineBlocks;
+      : selfie
+        ? selfieBlocks(baselineBlocks, german)
+        : baselineBlocks;
+  const primaryBlocks = openGarment
+    ? openOrganza
+      ? openOrganzaBlocks(modeBlocks, german)
+      : openVoileBlocks(modeBlocks, german)
+    : modeBlocks;
   return {
     id: PROFILE_IDS.universal,
     sections,
-    ...((referenceSheet || singleReference || execution)
-      ? { textBlocks: execution ? withExecutionContract(modeBlocks) : modeBlocks }
+    ...((referenceSheet || singleReference || selfie || openGarment || execution)
+      ? { textBlocks: execution ? withExecutionContract(primaryBlocks) : primaryBlocks }
       : {}),
   };
+}
+
+function selfieBlocks(blocks: readonly TextLayoutBlock[], german: boolean): readonly TextLayoutBlock[] {
+  return [
+    group(german ? "KAMERA / PERSPEKTIVE" : "CAMERA / PERSPECTIVE", [fragment("selfie.capture")]),
+    { ...group(german ? "VERBINDLICHE SELFIE-AUFNAHME" : "BINDING SELFIE CAPTURE", [fragment("selfie.binding")]), separatorBefore: "\n" },
+    { ...blocks[1]!, separatorBefore: "\n\n\n" },
+    ...blocks.slice(2, -1),
+    group(german ? "SELFIE-AUFNAHME" : "SELFIE CAPTURE", [fragment("selfie.geometry")]),
+    ...blocks.slice(-1),
+  ];
+}
+
+function openVoileBlocks(blocks: readonly TextLayoutBlock[], german: boolean): readonly TextLayoutBlock[] {
+  return [
+    ...blocks.slice(0, 3),
+    { ...group(german ? "VERBINDLICHER KLEIDUNGSZUSTAND" : "BINDING GARMENT STATE", [fragment("garment.state")]), separatorBefore: "\n" },
+    { ...openGarmentOutfitBlock(german), separatorBefore: "\n\n\n" },
+    { ...blocks[4]!, separatorBefore: "\n\n" },
+    ...blocks.slice(5),
+  ];
+}
+
+function openOrganzaBlocks(blocks: readonly TextLayoutBlock[], german: boolean): readonly TextLayoutBlock[] {
+  return [
+    group(german ? "VERBINDLICHER KLEIDUNGSZUSTAND" : "BINDING GARMENT STATE", [fragment("garment.state")]),
+    { ...blocks[0]!, separatorBefore: "\n\n" },
+    group(german ? "OBERKÖRPER-SCHICHTREGEL" : "UPPER-BODY LAYER RULE", [fragment("garment.upper-body"), fragment("garment.layering")], " "),
+    ...blocks.slice(1),
+  ];
+}
+
+function openGarmentOutfitBlock(german: boolean): TextLayoutBlock {
+  return group(german ? "OUTFIT & ACCESSOIRES" : "OUTFIT AND ACCESSORIES", [
+    group(german ? "OBERKÖRPER-SCHICHTVERTRAG" : "UPPER-BODY LAYER CONTRACT", [fragment("garment.upper-body"), fragment("garment.layering")], " "),
+    { ...group(undefined, [fragment("garment.outfit"), fragment("garment.material-behaviour")], " "), separatorBefore: "\n" },
+  ]);
 }
 
 function hasFragment(document: Readonly<PromptDocument>, fragmentId: string): boolean {

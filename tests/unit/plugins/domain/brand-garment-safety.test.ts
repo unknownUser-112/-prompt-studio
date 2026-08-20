@@ -231,6 +231,53 @@ describe("brand, garment and safety plugins", () => {
     expect(fragments.filter(({ id }) => ["garment.upper-body", "garment.layering", "garment.state"].includes(id)).every(({ text, traceIds }) => text.trim().length > 0 && traceIds.length > 0)).toBe(true);
   });
 
+  it("materializes the existing open-garment fragments for the resolved Organza state", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "Deutsch",
+      tshirt: "eine offen getragene, leichte Organza-Bluse mit klarer Stoffstruktur",
+      tshirtMaterialMode: "Manuell",
+      tshirtMaterial: "Organza",
+    }, [garmentProvider, materialPhysicsProvider]);
+    const fragments = garmentSection.provide(state)[0]?.fragments ?? [];
+    const relevant = fragments.filter(({ id }) => ["garment.state", "garment.upper-body", "garment.layering"].includes(id));
+
+    expect(relevant.map(({ id }) => id)).toEqual(["garment.upper-body", "garment.layering", "garment.state"]);
+    expect(relevant.map(({ text }) => text)).toEqual([
+      "Das ausgewählte Kleidungsstück „eine offen getragene, leichte Organza-Bluse mit klarer Stoffstruktur in Weiß aus Organza“ ist das einzige am Oberkörper getragene Kleidungsstück der Hauptperson.",
+      "Darunter und darüber befindet sich kein weiteres Oberteil: kein T-Shirt, Tanktop, Camisole, Crop-Top, Body, Unterhemd, Baselayer, Bralette, BH, Pullover, Cardigan, Jacke oder anderes zusätzliches Oberteil. Die offene Trageweise oder leichte Lichtdurchlässigkeit ist keine Erlaubnis, eine Bedeckungs- oder Basisschicht zu ergänzen. Öffnung, Material, Farbe, Passform und Silhouette des ausgewählten Kleidungsstücks unverändert beibehalten.",
+      "Das ausgewählte Oberteil wird sichtbar offen getragen. Die ausgewählte vordere Knopfleiste bleibt im sichtbaren Oberkörperbereich eindeutig geöffnet. Kein sichtbarer Knopf verbindet die beiden Vorderteile. Die beiden Vorderteile bleiben entlang der sichtbaren Rumpfmitte getrennt und fallen entsprechend Material, Körperhaltung und Schwerkraft natürlich. Das Oberteil darf weder zugeknöpft, befestigt, überlappend geschlossen noch als geschlossenes Hemd oder geschlossene Bluse interpretiert werden. Öffnung, Material, Farbe, Passform und Silhouette unverändert erhalten. Keine nicht ausgewählte Oberkörper-Schicht ergänzen.",
+    ]);
+    expect(relevant.map(({ traceIds }) => traceIds)).toEqual([
+      [
+        "garment.upper.color:garment.upper-color",
+        "garment.upper.kind:garment.upper-kind",
+        "garment.upper.material:garment.upper-material",
+      ],
+      [
+        "garment.open:garment.open-state",
+        "garment.upper.color:garment.upper-color",
+        "garment.upper.kind:garment.upper-kind",
+        "garment.upper.material:garment.upper-material",
+      ],
+      [
+        "garment.open:garment.open-state",
+        "garment.upper.color:garment.upper-color",
+        "garment.upper.kind:garment.upper-kind",
+        "garment.upper.material:garment.upper-material",
+      ],
+    ]);
+  });
+
+  it("does not materialize open-garment state fragments for the closed baseline", async () => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch" }, [garmentProvider]);
+    const ids = garmentSection.provide(state)[0]?.fragments?.map(({ id }) => id) ?? [];
+
+    expect(ids).not.toContain("garment.state");
+    expect(ids).not.toContain("garment.upper-body");
+    expect(ids).not.toContain("garment.layering");
+  });
+
   it.each(["Deutsch", "English"])("exposes traced outfit and layering fragments without profile headings in %s", async (promptLanguage) => {
     const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage }, [garmentProvider]);
     const first = garmentSection.provide(state)[0]!;

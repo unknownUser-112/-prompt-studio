@@ -660,4 +660,51 @@ describe("V600 profile matrix", () => {
 
     expect(new TextRenderer().render(document, layout).value).toBe(expected);
   });
+
+  it.each([
+    ["universal", "Universal", "selfie.front-enabled.en"],
+    ["geminiPro", "Gemini Pro", "selfie.front-enabled.en"],
+    ["universal", "Universal", "garment.open.en"],
+    ["universal", "Universal", "material-physics.de"],
+    ["geminiNatural", "Gemini Natural", "material-physics.de"],
+    ["geminiPro", "Gemini Pro", "garment.open.en"],
+    ["geminiPro", "Gemini Pro", "material-physics.de"],
+  ])("renders Batch-6 selfie and garment-state parity for %s / %s", async (profileId, profile, scenarioId) => {
+    const scenario = GOLDEN_SCENARIOS.find(({ id }) => id === scenarioId)!;
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile, step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const layout = profileId === "universal"
+      ? createUniversalLayout(document, promptLanguage)
+      : profileId === "geminiNatural"
+        ? createGeminiNaturalLayout(document, promptLanguage)
+        : createGeminiProLayout(document, promptLanguage);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === profileId)!.output;
+
+    expect(new TextRenderer().render(document, layout).value).toBe(expected);
+  });
 });

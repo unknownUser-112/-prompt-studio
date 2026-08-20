@@ -14,6 +14,7 @@ export function createGeminiNaturalLayout(
   const selfie = document.sections.some((section) => section.fragments.some(({ id }) => id === "selfie.binding"));
   const additionalPerson = document.sections.some((section) => section.fragments.some(({ id }) => id === "additional-person.person"));
   const openGarment = document.sections.some((section) => section.fragments.some(({ id }) => id === "garment.state"));
+  const openOrganza = openGarment && document.sections.some((section) => section.fragments.some(({ id }) => id === "garment.outfit-build"));
   const authorizedBranding = document.sections.some((section) => section.fragments.some(({ id }) => id === "restrictions.branding-authorized"));
   const execution = document.sections.some((section) => section.fragments.some(({ id }) => id === "execution.image-generation"));
   const baselineBlocks = german ? germanBlocks(authorizedBranding) : englishBlocks(authorizedBranding);
@@ -24,7 +25,7 @@ export function createGeminiNaturalLayout(
       : selfie
         ? selfieBlocks(baselineBlocks, german)
         : baselineBlocks;
-  const primaryBlocks = openGarment ? openGarmentBlocks(modeBlocks, german) : modeBlocks;
+  const primaryBlocks = openGarment ? openGarmentBlocks(modeBlocks, german, openOrganza) : modeBlocks;
   const finalBlocks = additionalPerson ? additionalPersonBlocks(primaryBlocks, german) : primaryBlocks;
   return {
     id: PROFILE_IDS.geminiNatural,
@@ -33,7 +34,15 @@ export function createGeminiNaturalLayout(
   };
 }
 
-function openGarmentBlocks(blocks: readonly TextLayoutBlock[], german: boolean): readonly TextLayoutBlock[] {
+function openGarmentBlocks(blocks: readonly TextLayoutBlock[], german: boolean, organza: boolean): readonly TextLayoutBlock[] {
+  if (organza) {
+    return [
+      group(german ? "VERBINDLICHER KLEIDUNGSZUSTAND" : "BINDING GARMENT STATE", [fragment("garment.state")]),
+      { ...blocks[0]!, separatorBefore: "\n\n" },
+      group(german ? "OBERKÖRPER-SCHICHTREGEL" : "UPPER-BODY LAYER RULE", [fragment("garment.upper-body"), fragment("garment.layering")], " "),
+      ...blocks.slice(1),
+    ];
+  }
   return [
     blocks[0]!,
     group(german ? "OBERKÖRPER-SCHICHTVERTRAG" : "UPPER-BODY LAYER CONTRACT", [

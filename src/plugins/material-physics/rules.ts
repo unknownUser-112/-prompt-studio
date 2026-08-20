@@ -10,7 +10,8 @@ const rules: readonly ConstraintRule[] = [
   tracedGarmentMaterial("upper"),
   tracedGarmentMaterial("lower"),
   tracedGarmentMaterial("footwear"),
-  lowerMaterialPresentationRule(),
+  materialPresentationRule("upper", "tshirt"),
+  materialPresentationRule("lower", "pants"),
   adaptivePhysicalContextRule(),
 ];
 export const materialPhysicsProvider: ConstraintProvider = { id: PLUGIN_ID, version: VERSION, sourcePluginId: PLUGIN_ID, rules: () => rules };
@@ -46,28 +47,28 @@ function tracedGarmentMaterial(garment: "upper" | "lower" | "footwear"): Constra
   };
 }
 
-function lowerMaterialPresentationRule(): ConstraintRule {
+function materialPresentationRule(slot: "upper" | "lower", inputGarment: "tshirt" | "pants"): ConstraintRule {
   return {
-    id: "material-physics.lower-presentation",
+    id: `material-physics.${slot}-presentation`,
     version: VERSION,
     sourcePluginId: PLUGIN_ID,
     phase: "constraints",
     conflictStrategy: "reject",
-    description: "Preserves the explicit physical presentation of the selected lower garment.",
+    description: `Preserves the explicit physical presentation of the selected ${slot} garment.`,
     evaluate: ({ facts }) => {
       const fields = [
-        "materialEngine.byGarment.pants.opacity",
-        "materialEngine.byGarment.pants.presentation",
-        "materialEngine.byGarment.pants.realism",
-        "materialEngine.byGarment.pants.surface",
-      ] as const;
+        `materialEngine.byGarment.${inputGarment}.opacity`,
+        `materialEngine.byGarment.${inputGarment}.presentation`,
+        `materialEngine.byGarment.${inputGarment}.realism`,
+        `materialEngine.byGarment.${inputGarment}.surface`,
+      ];
       const values = fields.map((path) => readString(facts.values, path));
       if (values.every((value) => value === undefined)) return [];
-      if (values.some((value) => value === undefined)) throw new Error("Incomplete lower material presentation");
+      if (values.some((value) => value === undefined)) throw new Error(`Incomplete ${slot} material presentation`);
       const [opacity, presentation, realism, surface] = values as [string, string, string, string];
       return [{
-        path: "material.lowerPresentation",
-        sourceFields: [...fields],
+        path: `material.${slot}Presentation`,
+        sourceFields: fields as [string, string, string, string],
         value: { opacity, presentation, realism, surface },
       }];
     },

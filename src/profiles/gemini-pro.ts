@@ -11,19 +11,60 @@ export function createGeminiProLayout(
   const german = promptLanguage === "Deutsch";
   const referenceSheet = hasFragment(document, "character.reference-sheet");
   const singleReference = hasFragment(document, "character.single-reference");
+  const selfie = hasFragment(document, "selfie.binding");
+  const openGarment = hasFragment(document, "garment.state");
+  const openOrganza = openGarment && hasFragment(document, "garment.outfit-build");
   const authorizedBranding = document.sections.some((section) => section.fragments.some(({ id }) => id === "restrictions.branding-authorized"));
   const execution = document.sections.some((section) => section.fragments.some(({ id }) => id === "execution.image-generation"));
   const baselineBlocks = german ? germanBlocks(authorizedBranding) : englishBlocks(authorizedBranding);
-  const blocks = referenceSheet
+  const modeBlocks = referenceSheet
     ? referenceSheetBlocks(german)
     : singleReference
       ? singleReferenceBlocks(baselineBlocks, german)
-      : baselineBlocks;
+      : selfie
+        ? selfieBlocks(baselineBlocks, german)
+        : baselineBlocks;
+  const blocks = openGarment ? openGarmentBlocks(modeBlocks, german, openOrganza) : modeBlocks;
   return {
     id: PROFILE_IDS.geminiPro,
     sections: document.sections.map((section, order) => ({ sectionId: section.id, order })),
     textBlocks: execution ? withExecutionContract(blocks) : blocks,
   };
+}
+
+function selfieBlocks(blocks: readonly TextLayoutBlock[], german: boolean): readonly TextLayoutBlock[] {
+  return [
+    blocks[0]!,
+    { ...group(german ? "VERBINDLICHE SELFIE-AUFNAHME" : "BINDING SELFIE CAPTURE", [fragment("selfie.binding")]), separatorBefore: "\n" },
+    { ...blocks[1]!, separatorBefore: "\n\n\n" },
+    group("COMPOSITION AND CAMERA", [fragment("selfie.capture")]),
+    ...blocks.slice(3, 10),
+    group(german ? "SELFIE-AUFNAHME" : "SELFIE CAPTURE", [fragment("selfie.geometry")]),
+    { ...blocks[10]!, separatorBefore: "\n" },
+    ...blocks.slice(11),
+  ];
+}
+
+function openGarmentBlocks(blocks: readonly TextLayoutBlock[], german: boolean, organza: boolean): readonly TextLayoutBlock[] {
+  const state = { ...group(german ? "VERBINDLICHER KLEIDUNGSZUSTAND" : "BINDING GARMENT STATE", [fragment("garment.state")]), separatorBefore: "\n" };
+  if (organza) {
+    return [
+      ...blocks.slice(0, 4),
+      state,
+      { ...blocks[4]!, separatorBefore: "\n\n\n" },
+      ...blocks.slice(5),
+      { ...group(german ? "OBERKÖRPER-SCHICHTREGEL" : "UPPER-BODY LAYER RULE", [fragment("garment.upper-body"), fragment("garment.layering")], " "), separatorBefore: "\n\n" },
+    ];
+  }
+  return [
+    ...blocks.slice(0, 4),
+    state,
+    { ...group("OUTFIT AND MATERIALS", [
+      group(german ? "OBERKÖRPER-SCHICHTVERTRAG" : "UPPER-BODY LAYER CONTRACT", [fragment("garment.upper-body"), fragment("garment.layering")], " "),
+      { ...group(undefined, [fragment("garment.outfit"), fragment("garment.material-behaviour")], " "), separatorBefore: "\n" },
+    ]), separatorBefore: "\n\n\n" },
+    ...blocks.slice(5),
+  ];
 }
 
 function hasFragment(document: Readonly<PromptDocument>, fragmentId: string): boolean {
