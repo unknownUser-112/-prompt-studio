@@ -445,6 +445,19 @@ describe("camera and selfie plugins", () => {
     ]);
   });
 
+  it("materializes the compact German camera system with exact provenance", async () => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch" });
+    const first = cameraSection.provide(state)[0]?.fragments?.find(({ id }) => id === "camera.compact-system");
+    const second = cameraSection.provide(state)[0]?.fragments?.find(({ id }) => id === "camera.compact-system");
+
+    expect(first).toEqual({
+      id: "camera.compact-system",
+      text: "modernes Smartphone-Kamerasystem, Hauptkamera des Smartphones mit natürlicher Perspektive",
+      traceIds: ["camera.device:camera.device", "camera.perspective:camera.perspective"],
+    });
+    expect(second).toEqual(first);
+  });
+
   it("does not invent whole-person capture content when resolved framing is absent", async () => {
     const state = await resolve({ promptLanguage: "English" });
 

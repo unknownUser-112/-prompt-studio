@@ -29,6 +29,7 @@ import { createGeminiNaturalLayout } from "../../../src/profiles/gemini-natural"
 import { createGeminiProLayout } from "../../../src/profiles/gemini-pro";
 import { createNanoBananaProLayout } from "../../../src/profiles/nano-banana-pro";
 import { createGptImage2Layout } from "../../../src/profiles/gpt-image-2";
+import { createFluxLayout } from "../../../src/profiles/flux";
 import { TextRenderer } from "../../../src/renderers/text-renderer";
 import { createFixedRuntime } from "../../helpers/fixed-runtime";
 import { GOLDEN_SCENARIOS } from "../../golden/scenarios";
@@ -922,5 +923,38 @@ describe("V600 profile matrix", () => {
     const expected = matrix.entries.find((entry) => entry.scenarioId === scenario.id && entry.profileId === "gptImage2")!.output;
 
     expect(new TextRenderer().render(document, createGptImage2Layout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it.each(GOLDEN_SCENARIOS)("renders every FLUX scenario byte-identically: $id", async (scenario) => {
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile: "FLUX", step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenario.id && entry.profileId === "flux")!.output;
+
+    expect(new TextRenderer().render(document, createFluxLayout(document, promptLanguage)).value).toBe(expected);
   });
 });

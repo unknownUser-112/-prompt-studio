@@ -4,6 +4,7 @@ import { modelBehaviourProvider } from "../../../../src/plugins/model-behaviour/
 import { modelBehaviourSection } from "../../../../src/plugins/model-behaviour/sections";
 import { cameraProvider } from "../../../../src/plugins/camera/rules";
 import { brandProvider } from "../../../../src/plugins/brand/rules";
+import { characterSheetProvider } from "../../../../src/plugins/character-sheet/rules";
 import type { ConstraintProvider } from "../../../../src/domain/contracts/constraints/provider";
 import { ConstraintEngine } from "../../../../src/domain/engines/constraint-engine";
 import { createResolvedStateBuilder } from "../../../../src/domain/engines/resolved-state-builder";
@@ -278,6 +279,25 @@ describe("model-behaviour plugin", () => {
 
     expect(first?.text).toBe(expected);
     expect(first?.traceIds).toEqual(["model.behaviour:model-behaviour.selection"]);
+    expect(second).toEqual(first);
+  });
+
+  it("materializes compact human detail with exact cross-provider provenance", async () => {
+    const state = await resolve(
+      { ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch" },
+      [characterSheetProvider, modelBehaviourProvider],
+    );
+    const first = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "realism.compact-human-detail");
+    const second = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "realism.compact-human-detail");
+
+    expect(first).toEqual({
+      id: "realism.compact-human-detail",
+      text: "natürlicher Haut-Look mit glaubwürdiger Struktur, sichtbare Poren mit natürlich variierender Dichte, natürliche Gruppierung einzelner Strähnen, Die Strähnen wirken natürlich organisiert und bleiben leicht asymmetrisch verteilt, einige natürlich verteilte einzelne abstehende Haare mit zufälliger, nicht gleichförmiger Verteilung",
+      traceIds: [
+        "character.skinTone:character-sheet.skinTone",
+        "model.behaviour:model-behaviour.selection",
+      ],
+    });
     expect(second).toEqual(first);
   });
 

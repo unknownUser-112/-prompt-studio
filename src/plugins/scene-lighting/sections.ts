@@ -52,6 +52,7 @@ export const sceneLightingSection: PromptSectionProvider = {
       ? ["scene.area", "scene.location"] as const
       : ["scene.atmosphere"] as const;
     const compact = hasCompleteBaseline ? createCompactSceneLight(state.values, german) : undefined;
+    const compactLocation = hasCompleteBaseline && german ? createCompactLocation(state.values) : undefined;
     const fragments = !hasCompleteBaseline ? undefined : german ? [
       createResolvedFragmentDraft(state, "scene-lighting", "scene.environment", environment, ["scene.area", "scene.atmosphere", "scene.location", "scene.mood", "scene.surfaceCondition"]),
       createResolvedFragmentDraft(state, "scene-lighting", "scene.natural-details", naturalDetails, naturalDetailPaths),
@@ -61,6 +62,13 @@ export const sceneLightingSection: PromptSectionProvider = {
       createResolvedFragmentDraft(state, "scene-lighting", "lighting.white-balance", whiteBalance, ["lighting.whiteBalance"]),
       createResolvedFragmentDraft(state, "scene-lighting", "lighting.source-consistency", SOURCE_CONSISTENCY_DE, ["lighting.setup", "lighting.source"]),
       createResolvedFragmentDraft(state, "scene-lighting", "scene.compact-scene-light", compact!.text, compact!.paths),
+      createResolvedFragmentDraft(
+        state,
+        "scene-lighting",
+        "scene.compact-location",
+        compactLocation!.text,
+        compactLocation!.paths,
+      ),
     ] : [
       createResolvedFragmentDraft(state, "scene-lighting", "scene.environment", environment, ["scene.area", "scene.atmosphere", "scene.location", "scene.mood", "scene.surfaceCondition"]),
       createResolvedFragmentDraft(state, "scene-lighting", "scene.natural-details", naturalDetails, naturalDetailPaths),
@@ -104,6 +112,33 @@ function createCompactSceneLight(values: unknown, german: boolean): { readonly t
     };
   }
   throw new Error(`Unsupported compact scene context: ${location}, ${area}`);
+}
+
+function createCompactLocation(values: unknown): { readonly text: string; readonly paths: readonly string[] } {
+  const scene = objectAt(values, "scene");
+  const location = requiredString(scene, "location");
+  const area = requiredString(scene, "area");
+  if (location === "location.apartment" && area === "locationArea.apartment.modern_living_room_window") {
+    const lighting = objectAt(values, "lighting");
+    if (requiredString(lighting, "source") !== "lightSource.window") throw new Error("Unsupported compact apartment light source");
+    return {
+      text: "in einer modernen Wohnung, Wohnzimmer · modern, mit natürlichem Fensterlicht",
+      paths: ["scene.area", "scene.location", "lighting.source"],
+    };
+  }
+  if (location === "Strand" && area === "Bewölkter Strand · diffuse Atmosphäre") {
+    return {
+      text: "an einem Strand, Bewölkter Strand · diffuse Atmosphäre",
+      paths: ["scene.area", "scene.location"],
+    };
+  }
+  if (location === "Terrasse" && area === "Terrasse eines Stadthauses · ruhig und privat") {
+    return {
+      text: "auf einer Terrasse, Terrasse eines Stadthauses · ruhig und privat",
+      paths: ["scene.area", "scene.location"],
+    };
+  }
+  throw new Error(`Unsupported compact location: ${location}, ${area}`);
 }
 
 function createEnvironmentContent(values: unknown, german: boolean): string {

@@ -18,6 +18,8 @@ const resolveWithOrder = (input: unknown, reversed = false) => new ConstraintEng
 
 const PRIMARY_SUBJECT_CONTRACT_DE = "Erwachsene Frau, 21 Jahre alt und 160 cm groß; Schlank & ausgewogen, Durchschnittlich Brustvolumen, Natürlich ausgewogen Brustform, ausgewogenen Hüftproportionen. heller, warmer Hautton, graublaue Augen; brustlange blonde natürlich wellige Haare. Die ausgewählten Körperproportionen exakt beibehalten; Anatomie, Schwerkraft und Stoffspannung bleiben glaubwürdig.";
 const PRIMARY_SUBJECT_CONTRACT_EN = "Adult woman, 21 years old and 160 cm tall; slim and balanced figure, average chest volume, naturally balanced chest shape, and balanced hip proportions. fair skin with warm undertones, gray-blue eyes, and chest-length blonde naturally wavy hair. Preserve the exact selected body proportions; anatomy, gravity, and garment tension remain believable.";
+const COMPACT_IDENTITY_DE = "Die dargestellte Person, adult Frau, age 21, 160 cm, Schlank & ausgewogen, Durchschnittlich, Natürlich ausgewogen, ausgewogenen Hüftproportionen, heller, warmer Hautton, graublaue Augen, brustlange blonde natürlich wellige hair";
+const COMPACT_POSE_DE = "frontal und aufrecht stehend, Gewicht locker auf einem Bein, leicht links an der Kamera vorbei, mit entspanntem Ausdruck";
 const PRIMARY_SUBJECT_TRACE_IDS = [
   "character.adult:character-sheet.adult-status",
   "character.age:character-sheet.adult-status",
@@ -266,6 +268,34 @@ describe("character-sheet plugin", () => {
     expect(fragment?.traceIds).toEqual(PRIMARY_SUBJECT_TRACE_IDS);
   });
 
+  it("materializes deterministic compact identity and pose semantics from canonical values", async () => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch" });
+    const first = characterSheetSection.provide(state);
+    const second = characterSheetSection.provide(state);
+    const fragments = first.flatMap((draft) => draft.fragments ?? []);
+    const identity = fragments.find(({ id }) => id === "character.compact-identity");
+    const pose = fragments.find(({ id }) => id === "pose.compact-action");
+
+    expect(first).toEqual(second);
+    expect(identity?.text).toBe(COMPACT_IDENTITY_DE);
+    expect(identity?.traceIds).toEqual(PRIMARY_SUBJECT_TRACE_IDS);
+    expect(pose?.text).toBe(COMPACT_POSE_DE);
+    expect(pose?.traceIds).toEqual([
+      "pose.expression:character-sheet.pose-expression",
+      "pose.gaze:character-sheet.pose-gaze",
+      "pose.position:character-sheet.pose-position",
+    ]);
+  });
+
+  it("keeps detailed character and pose fragments unchanged beside compact alternatives", async () => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch" });
+    const fragments = characterSheetSection.provide(state).flatMap((draft) => draft.fragments ?? []);
+
+    expect(fragments.find(({ id }) => id === "character.subject")?.text).toContain("Die dargestellte Person ist eine erwachsene Frau, 21 Jahre alt und 160 cm groß.");
+    expect(fragments.find(({ id }) => id === "character.primary-subject-contract")?.text).toBe(PRIMARY_SUBJECT_CONTRACT_DE);
+    expect(fragments.find(({ id }) => id === "pose.action")?.text).toBe("frontal und aufrecht stehend, Gewicht locker auf einem Bein. Sie blickt leicht links an der Kamera vorbei und zeigt einen entspannten Ausdruck.");
+  });
+
   it("formats prioritized flat character values through the canonical primary-subject contract", async () => {
     const state = await resolve({
       ...createCanonicalProjectStateV5Values(),
@@ -473,14 +503,25 @@ describe("character-sheet plugin", () => {
     const fragments = first.flatMap((draft) => draft.fragments ?? []);
 
     expect(first).toEqual(second);
-    expect(fragments.map(({ id }) => id)).toEqual([
-      "character.subject",
-      "character.primary-subject-contract",
-      "character.hairstyle",
-      "realism.skin",
-      "pose.action",
-      "character.facial-features",
-    ]);
+    expect(fragments.map(({ id }) => id)).toEqual(promptLanguage === "Deutsch"
+      ? [
+        "character.subject",
+        "character.primary-subject-contract",
+        "character.compact-identity",
+        "character.hairstyle",
+        "realism.skin",
+        "pose.action",
+        "pose.compact-action",
+        "character.facial-features",
+      ]
+      : [
+        "character.subject",
+        "character.primary-subject-contract",
+        "character.hairstyle",
+        "realism.skin",
+        "pose.action",
+        "character.facial-features",
+      ]);
     expect(fragments.every(({ text }) => !/^(PERSON|SUBJECT|HAUTREALISMUS|SKIN REALISM|POSE|GESICHTSMERKMALE|FACIAL FEATURES)\n/u.test(text))).toBe(true);
     expect(fragments.every(({ traceIds }) => traceIds.length > 0)).toBe(true);
     expect(new Set(fragments.flatMap(({ traceIds }) => traceIds))).toEqual(new Set(first.flatMap(({ traceIds }) => traceIds)));

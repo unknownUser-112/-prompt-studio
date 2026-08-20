@@ -45,6 +45,13 @@ export const cameraSection: PromptSectionProvider = {
         compactCaptureForResolvedValue(photoLook, german),
         compactCapturePaths,
       ),
+      ...(german ? [createResolvedFragmentDraft(
+        state,
+        "camera",
+        "camera.compact-system",
+        "modernes Smartphone-Kamerasystem, Hauptkamera des Smartphones mit natürlicher Perspektive",
+        ["camera.device", "camera.perspective"],
+      )] : []),
       createResolvedFragmentDraft(state, "camera", "camera.selected-framing", selectedFraming, ["camera.framing"]),
       ...(outputContract === undefined ? [] : [
         createResolvedFragmentDraft(state, "camera", "camera.output-contract", outputContract, outputContractPaths),

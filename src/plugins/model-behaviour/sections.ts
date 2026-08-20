@@ -16,6 +16,7 @@ const CAPTURE_QUALITY_EN = "No artificial skin smoothing, excessive blur, heavy 
 const BRANDING_DE = "Kein sichtbarer Text, keine Logos und kein sonstiges Branding.";
 const BRANDING_EN = "No visible text, logos, or other branding.";
 const COMPACT_REALISM_DE = "Glaubwürdige Anatomie, natürliche Proportionen, realistischer Stofffall, natürliche Haut- und Haarstruktur sowie konsistente Schatten. Keine CGI-Perfektion, keine künstliche Hautglättung und keine übertriebene Schärfung.";
+const COMPACT_HUMAN_DETAIL_DE = "natürlicher Haut-Look mit glaubwürdiger Struktur, sichtbare Poren mit natürlich variierender Dichte, natürliche Gruppierung einzelner Strähnen, Die Strähnen wirken natürlich organisiert und bleiben leicht asymmetrisch verteilt, einige natürlich verteilte einzelne abstehende Haare mit zufälliger, nicht gleichförmiger Verteilung";
 const COMPACT_REALISM_EN = "Believable anatomy, exact selected body proportions, realistic garment drape, natural skin and hair texture, and one consistent light source. No CGI-like perfection, artificial skin smoothing, or excessive sharpening.";
 const COMPACT_FINAL_DE = "Keine sichtbaren Texte, Logos oder Wasserzeichen.";
 const COMPACT_FINAL_EN = "No visible text, logos, or watermark.";
@@ -77,6 +78,9 @@ export const modelBehaviourSection: PromptSectionProvider = {
       fragment("restrictions.capture-quality-detailed", "Keine künstliche Hautglättung, keine übertriebene Hintergrundunschärfe, kein starkes Cinematic Color Grading und kein Wasserzeichen."),
       fragment("restrictions.preservation-contract", PRESERVATION_CONTRACT_DE),
       fragment("realism.compact-photographic", COMPACT_REALISM_DE),
+      ...(state.trace.entries.some(({ path }) => path === "character.skinTone")
+        ? [fragment("realism.compact-human-detail", COMPACT_HUMAN_DETAIL_DE, ["character.skinTone", "model.behaviour"])]
+        : []),
       branding === undefined
         ? fragment("restrictions.branding", brandingRestriction)
         : fragment("restrictions.branding-authorized", brandingRestriction, brandTracePaths(branding)),

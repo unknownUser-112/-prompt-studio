@@ -85,6 +85,7 @@ export const garmentSection: PromptSectionProvider = {
     );
     const materialConsistencyFragment = createMaterialConsistencyFragment(state, german);
     const compactOutfitFragment = createCompactOutfitFragment(state, german);
+    const compactItemsFragment = german ? createCompactItemsFragment(state) : undefined;
     const compactSelectionRestriction = createCompactSelectionRestriction(state, german);
     const compactUpperLayerContract = createCompactUpperLayerContract(state, german);
     const openOrganzaFragments = openOrganza ? createOpenOrganzaFragments(state) : [];
@@ -92,6 +93,7 @@ export const garmentSection: PromptSectionProvider = {
       ...openOrganzaFragments,
       outfitFragment,
       ...(compactOutfitFragment === undefined ? [] : [compactOutfitFragment]),
+      ...(compactItemsFragment === undefined ? [] : [compactItemsFragment]),
       ...(compactSelectionRestriction === undefined ? [] : [compactSelectionRestriction]),
       ...(compactUpperLayerContract === undefined ? [] : [compactUpperLayerContract]),
       createResolvedFragmentDraft(state, "garment", "garment.outfit-build", "Das Outfit besteht aus einer einzelnen, sauber wirkenden Schicht.", ["garment.outfitBuild"]),
@@ -160,6 +162,7 @@ function createOpenVoileDraft(state: Parameters<PromptSectionProvider["provide"]
     : "The outfit uses Voile and leather-textile blend. Fabric tension, folds, seams, reflections, and material thickness respond naturally to posture, movement, gravity, and wind. Fabric folds originate from gravity, body contact points, garment construction, and movement; avoid decorative, mirrored, or repetitive wrinkle patterns.";
   const materialConsistencyFragment = createMaterialConsistencyFragment(state, german);
   const compactOutfitFragment = createCompactOutfitFragment(state, german, true);
+  const compactItemsFragment = german ? createCompactItemsFragment(state, true) : undefined;
   const compactSelectionRestriction = createCompactSelectionRestriction(state, german);
   const compactUpperLayerContract = createCompactUpperLayerContract(state, german);
   const fragments = [
@@ -168,6 +171,7 @@ function createOpenVoileDraft(state: Parameters<PromptSectionProvider["provide"]
     createResolvedFragmentDraft(state, "garment", "garment.state", garmentState, ["garment.open", "garment.upper.color", "garment.upper.kind", "garment.upper.material", "garment.upperLayer"]),
     createResolvedFragmentDraft(state, "garment", "garment.outfit", outfit, ["garment.footwear.color", "garment.footwear.kind", "garment.upper.color", "garment.upper.kind", "garment.upper.material"]),
     ...(compactOutfitFragment === undefined ? [] : [compactOutfitFragment]),
+    ...(compactItemsFragment === undefined ? [] : [compactItemsFragment]),
     ...(compactSelectionRestriction === undefined ? [] : [compactSelectionRestriction]),
     ...(compactUpperLayerContract === undefined ? [] : [compactUpperLayerContract]),
     createResolvedFragmentDraft(state, "garment", "garment.material-behaviour", materialBehaviour, ["garment.footwear.kind", "garment.upper.kind", "garment.upper.material"]),
@@ -243,6 +247,56 @@ function createCompactOutfitFragment(
     "garment",
     "garment.compact-outfit",
     `${label}${[upper, lower, footwear].filter((part): part is string => part !== undefined).join("; ")}.`,
+    paths,
+  );
+}
+
+function createCompactItemsFragment(
+  state: Parameters<PromptSectionProvider["provide"]>[0],
+  omitLower = false,
+) {
+  const branding = resolvedBranding(state.values);
+  const brandPaths = branding === undefined
+    ? []
+    : ["brand.allowedGarment", "brand.name", ...(branding.model === undefined ? [] : ["brand.model"])] as const;
+  const open = readNested(state.values, "garment", "open") === true;
+  const paths = [
+    "garment.footwear.color",
+    "garment.footwear.kind",
+    "garment.upper.color",
+    "garment.upper.kind",
+    ...(!omitLower ? ["garment.lower.color", "garment.lower.kind"] : []),
+    ...(open ? ["garment.open", "material.upper"] : []),
+    ...brandPaths,
+  ];
+  if (!paths.every((path) => state.trace.entries.some((entry) => entry.path === path))) return undefined;
+  const upperKind = readNestedItem(state.values, "upper", "kind");
+  const upperColor = readNestedItem(state.values, "upper", "color");
+  const upperMaterial = readMaterial(state.values, "upper");
+  const upperBrand = branding?.allowedGarment === "upper" ? ` von ${branding.name}` : "";
+  const upper = upperKind === "upperGarment.classic_tshirt" && upperColor === "color.white"
+    ? `ein klassisches T-Shirt in Weiß${upperBrand}`
+    : upperKind === "upperGarment.shirt" && upperColor === "color.white" && open && upperMaterial === "Voile"
+      ? `ein offen getragenes, luftiges Voile-Hemd mit feiner Webstruktur in Weiß${upperBrand}`
+      : upperKind === "upperGarment.shirt" && upperColor === "color.white" && open && upperMaterial === "Organza"
+        ? `eine offen getragene, leichte Organza-Bluse mit klarer Stoffstruktur in Weiß${upperBrand}`
+        : undefined;
+  const lower = omitLower ? undefined : readNestedItem(state.values, "lower", "kind") === "lowerGarment.high_waist_jeans"
+    && readNestedItem(state.values, "lower", "color") === "color.denim_blue"
+    ? "eine High-Waist-Jeans in Denimblau"
+    : readNestedItem(state.values, "lower", "kind") === "lowerGarment.wide_leg_linen_trousers"
+      ? "eine Wide-Leg-Leinenhose"
+      : undefined;
+  const footwear = readNestedItem(state.values, "footwear", "kind") === "footwear.classic_sneakers"
+    && readNestedItem(state.values, "footwear", "color") === "color.white"
+    ? "weiße klassische Sneaker"
+    : undefined;
+  if (upper === undefined || footwear === undefined || (!omitLower && lower === undefined)) return undefined;
+  return createResolvedFragmentDraft(
+    state,
+    "garment",
+    "garment.compact-items",
+    [upper, lower, footwear].filter((part): part is string => part !== undefined).join(", "),
     paths,
   );
 }

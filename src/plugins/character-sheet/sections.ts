@@ -71,6 +71,17 @@ export const characterSheetSection: PromptSectionProvider = {
         PRIMARY_SUBJECT_CONTRACT_PATHS,
       )
       : undefined;
+    const compactIdentityContent = german ? createCompactIdentityContent(state.values) : undefined;
+    const compactIdentityFragment = compactIdentityContent !== undefined
+      && PRIMARY_SUBJECT_CONTRACT_PATHS.every((path) => state.trace.entries.some((entry) => entry.path === path))
+      ? createResolvedFragmentDraft(
+        state,
+        "character-sheet",
+        "character.compact-identity",
+        compactIdentityContent,
+        PRIMARY_SUBJECT_CONTRACT_PATHS,
+      )
+      : undefined;
     const hairstyleContent = createHairstyleContent(state.values, german);
     const hairstyleFragment = hairstyleContent !== undefined
       && state.trace.entries.some((entry) => entry.path === "character.hair.style")
@@ -99,6 +110,15 @@ export const characterSheetSection: PromptSectionProvider = {
       german ? ["character.skinTone"] : ["character.hair.color", "character.hair.length", "character.hair.style", "character.hair.texture", "character.skinTone"],
     );
     const poseFragment = createResolvedFragmentDraft(state, "character-sheet", "pose.action", poseContent, POSE_PATHS);
+    const compactPoseFragment = german
+      ? createResolvedFragmentDraft(
+        state,
+        "character-sheet",
+        "pose.compact-action",
+        createCompactPoseContent(state.values),
+        POSE_PATHS,
+      )
+      : undefined;
     const faceFragment = createResolvedFragmentDraft(state, "character-sheet", "character.facial-features", german ? FACE_CONTENT_DE : FACE_CONTENT_EN, FACE_PATHS);
     const referenceMode = objectAt(state.values, "referenceMode");
     const referenceFragments = referenceMode?.enabled === true
@@ -132,6 +152,7 @@ export const characterSheetSection: PromptSectionProvider = {
       [
         subjectFragment,
         ...(primarySubjectContractFragment === undefined ? [] : [primarySubjectContractFragment]),
+        ...(compactIdentityFragment === undefined ? [] : [compactIdentityFragment]),
         ...(hairstyleFragment === undefined ? [] : [hairstyleFragment]),
         ...(identityConsistencyFragment === undefined ? [] : [identityConsistencyFragment]),
         ...referenceFragments,
@@ -140,11 +161,19 @@ export const characterSheetSection: PromptSectionProvider = {
     );
     const skin = createResolvedSectionDraft(state, "character-sheet", german ? SKIN_DE : SKIN_EN, [skinFragment]);
     const pose = createResolvedSectionDraft(state, "character-sheet", `${german ? "POSE & AKTION" : "POSE AND ACTION"}\n${poseContent}`, [poseFragment]);
+    const poseWithCompact = compactPoseFragment === undefined
+      ? pose
+      : createResolvedSectionDraft(
+        state,
+        "character-sheet",
+        `${german ? "POSE & AKTION" : "POSE AND ACTION"}\n${poseContent}`,
+        [poseFragment, compactPoseFragment],
+      );
     const face = createResolvedSectionDraft(state, "character-sheet", german ? FACE_DE : FACE_EN, [faceFragment]);
     return [
       { ...subject, slotId: "character-sheet-a-subject" },
       { ...skin, slotId: "character-sheet-b-skin" },
-      { ...pose, slotId: "character-sheet-c-pose" },
+      { ...poseWithCompact, slotId: "character-sheet-c-pose" },
       { ...face, slotId: "character-sheet-d-face" },
     ];
   },
@@ -155,6 +184,22 @@ function createPoseContent(values: unknown, german: boolean): string {
   if (expression === "expression.relaxed") return german ? POSE_RELAXED_DE : POSE_RELAXED_EN;
   if (expression === "expression.laughing" || expression === "natürlich lachend") return german ? POSE_LAUGHING_DE : POSE_LAUGHING_EN;
   throw new Error(`Unsupported resolved pose.expression: ${String(expression)}`);
+}
+
+function createCompactPoseContent(values: unknown): string {
+  const pose = objectAt(values, "pose");
+  const position = pose?.position === "pose.standing"
+    ? "frontal und aufrecht stehend, Gewicht locker auf einem Bein"
+    : String(pose?.position);
+  const gaze = pose?.gaze === "gaze.left_camera"
+    ? "leicht links an der Kamera vorbei"
+    : String(pose?.gaze);
+  const expression = pose?.expression === "expression.relaxed"
+    ? "mit entspanntem Ausdruck"
+    : pose?.expression === "expression.laughing" || pose?.expression === "natürlich lachend"
+      ? "natürlich lachend"
+      : String(pose?.expression);
+  return `${position}, ${gaze}, ${expression}`;
 }
 
 function createSubjectContent(values: unknown, german: boolean): string {
@@ -212,6 +257,33 @@ function createPrimarySubjectContractContent(values: unknown, german: boolean): 
     return `Erwachsene ${gender}, ${character.age} Jahre alt und ${character.heightCentimeters} cm groß; ${bodyBuild}, ${chestVolume}, ${chestShape}, ${lowerBody}. ${skinTone}, ${eyeColor}; ${hairLength} ${hairColor} ${hairTexture}. Die ausgewählten Körperproportionen exakt beibehalten; Anatomie, Schwerkraft und Stoffspannung bleiben glaubwürdig.`;
   }
   return `Adult ${gender}, ${character.age} years old and ${character.heightCentimeters} cm tall; ${bodyBuild}, ${chestVolume}, ${chestShape}, and ${lowerBody}. ${skinTone}, ${eyeColor}, and ${hairLength} ${hairColor} ${hairTexture}. Preserve the exact selected body proportions; anatomy, gravity, and garment tension remain believable.`;
+}
+
+function createCompactIdentityContent(values: unknown): string | undefined {
+  const character = objectAt(values, "character");
+  const hair = objectAt(character, "hair");
+  if (character?.adult !== true || typeof character.age !== "number" || typeof character.heightCentimeters !== "number" || hair === undefined) {
+    return undefined;
+  }
+  const gender = localized(character.gender, true, { "gender.woman": ["Frau", "woman"] });
+  const bodyBuild = localized(character.bodyBuild, true, { "bodyBuild.slim_balanced": ["Schlank & ausgewogen", "slim and balanced"] });
+  const chestVolume = localized(character.chestVolume, true, {
+    "chestVolume.average": ["Durchschnittlich", "average"],
+    "chestVolume.very_full": ["Sehr voll", "very full"],
+  });
+  const chestShape = localized(character.chestShape, true, { "chestShape.natural_balanced": ["Natürlich ausgewogen", "naturally balanced"] });
+  const lowerBody = localized(character.lowerBody, true, {
+    "lowerBody.balanced": ["ausgewogenen Hüftproportionen", "balanced hip proportions"],
+    "lowerBody.softly_rounded": ["weich gerundete Hüftsilhouette", "softly rounded hip silhouette"],
+  });
+  const skinTone = localized(character.skinTone, true, { "skinTone.fair_warm": ["heller, warmer Hautton", "fair skin with warm undertones"] });
+  const eyeColor = localized(character.eyeColor, true, { "eyeColor.gray_blue": ["graublaue Augen", "gray-blue eyes"] });
+  const hairLength = localized(hair.length, true, { "hairLength.chest": ["brustlange", "chest-length"] });
+  const hairColor = localized(hair.color, true, { "hairColor.blonde": ["blonde", "blonde"] });
+  const hairTexture = localized(hair.texture, true, { "hairTexture.natural_waves": ["natürlich wellige", "naturally wavy"] });
+  const required = [gender, bodyBuild, chestVolume, chestShape, lowerBody, skinTone, eyeColor, hairLength, hairColor, hairTexture];
+  if (required.some((value) => value === undefined)) return undefined;
+  return `Die dargestellte Person, adult ${gender}, age ${character.age}, ${character.heightCentimeters} cm, ${bodyBuild}, ${chestVolume}, ${chestShape}, ${lowerBody}, ${skinTone}, ${eyeColor}, ${hairLength} ${hairColor} ${hairTexture} hair`;
 }
 
 function createHairstyleContent(values: unknown, german: boolean): string | undefined {

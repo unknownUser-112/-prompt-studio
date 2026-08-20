@@ -285,12 +285,29 @@ describe("brand, garment and safety plugins", () => {
 
     expect(garmentSection.provide(state)[0]).toEqual(first);
     expect(fragments.map(({ id }) => id)).toEqual(promptLanguage === "Deutsch"
-      ? ["garment.outfit", "garment.compact-selection-restriction", "garment.outfit-build", "garment.material-behaviour"]
+      ? ["garment.outfit", "garment.compact-items", "garment.compact-selection-restriction", "garment.outfit-build", "garment.material-behaviour"]
       : ["garment.outfit", "garment.compact-selection-restriction", "garment.material-behaviour"]);
     expect(fragments.every(({ text }) => !/^OUTFIT/u.test(text))).toBe(true);
     expect(new Set(fragments.flatMap(({ traceIds }) => traceIds))).toEqual(new Set(
       first.traceIds,
     ));
+  });
+
+  it("materializes compact garment items from resolved selections with exact provenance", async () => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch" }, [garmentProvider]);
+    const first = garmentSection.provide(state)[0]?.fragments?.find(({ id }) => id === "garment.compact-items");
+    const second = garmentSection.provide(state)[0]?.fragments?.find(({ id }) => id === "garment.compact-items");
+
+    expect(first?.text).toBe("ein klassisches T-Shirt in Weiß, eine High-Waist-Jeans in Denimblau, weiße klassische Sneaker");
+    expect(first?.traceIds).toEqual([
+      "garment.footwear.color:garment.footwear-color",
+      "garment.footwear.kind:garment.footwear-kind",
+      "garment.lower.color:garment.lower-color",
+      "garment.lower.kind:garment.lower-kind",
+      "garment.upper.color:garment.upper-color",
+      "garment.upper.kind:garment.upper-kind",
+    ]);
+    expect(second).toEqual(first);
   });
 
   it.each([

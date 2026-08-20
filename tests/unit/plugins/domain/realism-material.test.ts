@@ -217,6 +217,7 @@ describe("adaptive realism and material physics plugins", () => {
     const second = materialPhysicsSection.provide(state);
     const fragments = first.flatMap((draft) => draft.fragments ?? []);
     const material = fragments.find(({ id }) => id === "material.physics");
+    const inlineMaterial = fragments.find(({ id }) => id === "material.inline-physics");
     const context = fragments.find(({ id }) => id === "material.adaptive-physical-context");
     const contextTrace = state.trace.entries.find(({ path }) => path === "material.adaptivePhysicalContext")!;
 
@@ -228,6 +229,10 @@ describe("adaptive realism and material physics plugins", () => {
       "material.lower:material-physics.lower-material",
       "material.upper:material-physics.upper-material",
     ]);
+    expect(inlineMaterial?.text).toBe(promptLanguage === "Deutsch"
+      ? "Oberteil: blickdichter Stoff mit vollständig verdeckender Materialwirkung; Die fotografische Darstellung wird passend zu Material und Licht abgeleitet.; automatisch angepasster Materialdetailgrad; materialgerechte Oberfläche; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points. Hose: blickdichter Stoff mit vollständig verdeckender Materialwirkung; Die fotografische Darstellung wird passend zu Material und Licht abgeleitet.; automatisch angepasster Materialdetailgrad; materialgerechte Oberfläche; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points."
+      : "top: opaque fabric with fully covering material behavior; Photographic presentation is derived from the material and lighting.; automatically adapted material detail; material-appropriate surface response; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points. trousers: opaque fabric with fully covering material behavior; Photographic presentation is derived from the material and lighting.; automatically adapted material detail; material-appropriate surface response; material-appropriate fiber and weave structure; vertical gravity folds with localized tension at contact points.");
+    expect(inlineMaterial?.traceIds).toEqual(material?.traceIds);
     expect(context?.traceIds).toEqual([contextTrace.id]);
     expect(contextTrace).toHaveProperty("sourceFields");
   });

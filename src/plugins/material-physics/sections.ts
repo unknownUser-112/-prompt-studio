@@ -33,6 +33,13 @@ export const materialPhysicsSection: PromptSectionProvider = {
           materialText,
           ["material.activeSlots", ...materialLines.flatMap(({ paths }) => paths)],
         ),
+        createResolvedFragmentDraft(
+          state,
+          "material-physics",
+          "material.inline-physics",
+          materialLines.map(({ text }) => text).join(" "),
+          ["material.activeSlots", ...materialLines.flatMap(({ paths }) => paths)],
+        ),
       ]);
     const context = hasAdaptivePhysicalContext(state.values)
       ? createResolvedSectionDraft(state, "material-physics", german ? CONTEXT_DE : CONTEXT_EN, [

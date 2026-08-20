@@ -240,10 +240,24 @@ describe("scene-lighting plugin", () => {
 
     expect(sceneLightingSection.provide(state)[0]).toEqual(first);
     expect(fragments.map(({ id }) => id)).toEqual(promptLanguage === "Deutsch"
-      ? ["scene.environment", "scene.natural-details", "lighting.coordination", "scene.surface-details", "lighting.capture", "lighting.white-balance", "lighting.source-consistency", "scene.compact-scene-light"]
+      ? ["scene.environment", "scene.natural-details", "lighting.coordination", "scene.surface-details", "lighting.capture", "lighting.white-balance", "lighting.source-consistency", "scene.compact-scene-light", "scene.compact-location"]
       : ["scene.environment", "scene.natural-details", "lighting.capture", "lighting.white-balance", "lighting.source-consistency", "scene.compact-scene-light"]);
     expect(fragments.every(({ text }) => !/^(LOCATION|SZENE)/u.test(text))).toBe(true);
     expect(fragments.every(({ traceIds }) => traceIds.length > 0)).toBe(true);
+  });
+
+  it("materializes the compact German location with exact provenance", async () => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch" });
+    const first = sceneLightingSection.provide(state)[0]?.fragments?.find(({ id }) => id === "scene.compact-location");
+    const second = sceneLightingSection.provide(state)[0]?.fragments?.find(({ id }) => id === "scene.compact-location");
+
+    expect(first?.text).toBe("in einer modernen Wohnung, Wohnzimmer · modern, mit natürlichem Fensterlicht");
+    expect(first?.traceIds).toEqual([
+      "lighting.source:scene-lighting.lighting-source",
+      "scene.area:scene-lighting.scene-area",
+      "scene.location:scene-lighting.scene-location",
+    ]);
+    expect(second).toEqual(first);
   });
 
   it.each([
