@@ -24,6 +24,9 @@ const UPPER_BODY_EN = "upper-body frame with a natural camera distance. Use one 
 const UPPER_BODY_DE = "Oberkörperaufnahme mit natürlichem Kameraabstand. Verwende nur einen einzigen durchgehenden Porträtrahmen, ohne Ganzkörperalternative, Vergleichsansicht oder wiederholte Person. Priorisiere Gesicht, Augen, Haut und Haardetails; füge keine Ganzkörperanforderungen hinzu. Aufgenommen mit einer modernes Smartphone-Kamerasystem und einem hauptkamera des Smartphones mit natürlicher Perspektive. natürlicher, authentischer fotografischer Charakter. natürliche Farbwiedergabe und ausgewogener Kontrast.";
 const OUTPUT_CONTRACT_DE = "Genau ein durchgehendes Foto. Die Hauptperson erscheint genau einmal und vollständig von Kopf bis Fuß; beide Füße sind sichtbar und kein Körperteil wird angeschnitten.\nKeine Collage, kein geteiltes Bild, kein Vergleich, keine alternative Aufnahme und keine Wiederholung der Hauptperson.";
 const OUTPUT_CONTRACT_EN = "Exactly one continuous photograph. The primary subject appears exactly once and is fully visible from head to toe; both feet are visible and no body part is cropped.\nNo collage, split image, comparison, alternate take, duplicate primary subject, or repeated view.";
+const GENERIC_OUTPUT_CONTRACT_EN = "Exactly one continuous photograph with the primary subject appearing once and fully contained within the selected framing.\nNo collage, split image, comparison, alternate take, duplicate primary subject, or repeated view.";
+const MULTI_WHOLE_PERSON_OUTPUT_CONTRACT_EN = "Exactly one continuous photograph. Both adults appear exactly once and are fully visible from head to toe in the same frame; all four feet are visible and neither person is cropped. Place the camera far enough back to fit both complete bodies at one camera distance.\nNo collage, split image, comparison, alternate take, duplicate primary subject, or repeated view.";
+const MULTI_GENERIC_OUTPUT_CONTRACT_EN = "Exactly one continuous photograph with exactly two adults, each appearing once and fully contained within the selected framing; do not crop either person or either face at the image edge.\nNo collage, split image, comparison, alternate take, duplicate primary subject, or repeated view.";
 
 describe("camera and selfie plugins", () => {
   it("projects flat framing facts with the canonical V5 id taking priority", async () => {
@@ -183,7 +186,7 @@ describe("camera and selfie plugins", () => {
 
     expect(first).toEqual(second);
     expect(first.text).toBe("Selfie binding");
-    expect(fragments.map(({ id }) => id)).toEqual(["selfie.binding", "selfie.capture", "selfie.geometry"]);
+    expect(fragments.map(({ id }) => id)).toEqual(["selfie.binding", "selfie.capture", "selfie.compact-capture", "selfie.geometry"]);
     expect(fragments.every(({ text, traceIds }) => text.trim().length > 0 && traceIds.length > 0)).toBe(true);
     expect(fragments.every(({ text }) => !/^(BINDING SELFIE CAPTURE|SELFIE CAPTURE)\n/u.test(text))).toBe(true);
     expect(fragments.find(({ id }) => id === "selfie.capture")?.traceIds).toEqual([
@@ -242,6 +245,44 @@ describe("camera and selfie plugins", () => {
   });
 
   it.each([
+    [false, "A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. The adult subject fits naturally within the frame; there is no external photographer."],
+    [true, "A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. Both adults fit naturally within the frame; there is no external photographer."],
+  ])("materializes the compact selfie capture for plural=%s", async (plural, expected) => {
+    const input = {
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "English",
+      selfieMode: { enabled: true, type: "selfie.front", phoneVisibility: "selfiePhone.auto" },
+      ...(plural ? {
+        additionalPerson: {
+          enabled: true,
+          type: "additionalPerson.randomWoman",
+          position: "additionalPersonPosition.beside",
+          activity: "additionalPersonActivity.shared_selfie",
+        },
+      } : {}),
+    };
+    const state = plural ? await resolveSharedSelfie(input) : await resolve(input);
+    const fragments = selfieSection.provide(state)[0]?.fragments ?? [];
+    const compact = fragments.find(({ id }) => id === "selfie.compact-capture");
+
+    expect(compact?.text).toBe(expected);
+    expect(compact?.traceIds).toEqual(plural ? [
+      "camera.device:selfie.camera-binding",
+      "camera.framing:selfie.framing-binding",
+      "scene.additionalPerson:additional-person.presence",
+      "selfieMode.enabled:selfie.enabled",
+      "selfieMode.phoneVisibility:selfie.phone-visibility",
+      "selfieMode.type:selfie.type",
+    ] : [
+      "camera.device:selfie.camera-binding",
+      "camera.framing:selfie.framing-binding",
+      "selfieMode.enabled:selfie.enabled",
+      "selfieMode.phoneVisibility:selfie.phone-visibility",
+      "selfieMode.type:selfie.type",
+    ]);
+  });
+
+  it.each([
     ["Deutsch", "KAMERA / PERSPEKTIVE\n", "Ganzkörper, Kopf bis Fuß"],
     ["English", "CAMERA / PERSPECTIVE\n", "full-body frame from head to toe"],
   ])("exposes a deterministic traced capture fragment without the universal heading in %s", async (promptLanguage, heading, contentStart) => {
@@ -260,6 +301,30 @@ describe("camera and selfie plugins", () => {
   });
 
   it.each([
+    ["Deutsch", "Ganzkörper, Kopf bis Fuß, beide Füße sichtbar"],
+    ["English", "full-body frame from head to toe with both feet visible"],
+  ])("materializes the selected whole-person framing without a profile label in %s", async (promptLanguage, expected) => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage });
+    const fragment = cameraSection.provide(state)[0]?.fragments?.find(({ id }) => id === "camera.selected-framing");
+
+    expect(fragment?.text).toBe(expected);
+    expect(fragment?.traceIds).toEqual(["camera.framing:camera.framing"]);
+  });
+
+  it("materializes upper-body selected framing without a whole-person fallback", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "English",
+      framingV5Id: "framing.upper_body",
+    });
+    const fragment = cameraSection.provide(state)[0]?.fragments?.find(({ id }) => id === "camera.selected-framing");
+
+    expect(fragment?.text).toBe("upper-body frame with a natural camera distance");
+    expect(fragment?.text).not.toContain("head to toe");
+    expect(fragment?.traceIds).toEqual(["camera.framing:camera.framing"]);
+  });
+
+  it.each([
     ["Deutsch", OUTPUT_CONTRACT_DE],
     ["English", OUTPUT_CONTRACT_EN],
   ])("materializes the complete resolved whole-person output contract in %s", async (promptLanguage, expected) => {
@@ -275,18 +340,42 @@ describe("camera and selfie plugins", () => {
     expect(fragment?.traceIds).toEqual(["camera.framing:camera.framing"]);
   });
 
-  it.each(["Deutsch", "English"])("keeps the output contract framing-aware for upper-body capture in %s", async (promptLanguage) => {
+  it("uses generic selected-framing containment for a single upper-body subject", async () => {
     const state = await resolve({
       ...createCanonicalProjectStateV5Values(),
-      promptLanguage,
+      promptLanguage: "English",
       framingV5Id: "framing.upper_body",
     });
     const fragment = cameraSection.provide(state)[0]?.fragments?.find(({ id }) => id === "camera.output-contract");
 
-    expect(fragment).toBeDefined();
-    expect(fragment?.text).toContain(promptLanguage === "Deutsch" ? "Oberkörperaufnahme" : "upper-body frame");
-    expect(fragment?.text).not.toContain(promptLanguage === "Deutsch" ? "vollständig von Kopf bis Fuß" : "fully visible from head to toe");
+    expect(fragment?.text).toBe(GENERIC_OUTPUT_CONTRACT_EN);
     expect(fragment?.traceIds).toEqual(["camera.framing:camera.framing"]);
+  });
+
+  it.each([
+    ["framing.whole_person", MULTI_WHOLE_PERSON_OUTPUT_CONTRACT_EN],
+    ["framing.upper_body", MULTI_GENERIC_OUTPUT_CONTRACT_EN],
+  ])("uses resolved two-adult output-contract semantics for %s", async (framingV5Id, expected) => {
+    const state = await resolveSharedSelfie({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "English",
+      framingV5Id,
+      additionalPerson: {
+        enabled: true,
+        type: "additionalPerson.randomWoman",
+        position: "additionalPersonPosition.beside",
+        activity: framingV5Id === "framing.upper_body"
+          ? "additionalPersonActivity.shared_selfie"
+          : "additionalPersonActivity.standing",
+      },
+    });
+    const fragment = cameraSection.provide(state)[0]?.fragments?.find(({ id }) => id === "camera.output-contract");
+
+    expect(fragment?.text).toBe(expected);
+    expect(fragment?.traceIds).toEqual([
+      "camera.framing:camera.framing",
+      "scene.additionalPerson:additional-person.presence",
+    ]);
   });
 
   it.each([
@@ -323,6 +412,37 @@ describe("camera and selfie plugins", () => {
     expect(fragment?.text).toContain("warme Farbbalance mit sanften goldenen Tönen.");
     expect(fragment?.text).not.toContain("natürliche Farbwiedergabe und ausgewogener Kontrast.");
     expect(fragment?.traceIds).toContain("camera.photoLook:camera.photo-look");
+  });
+
+  it.each([
+    [
+      "English",
+      {},
+      "Capture with a modern smartphone camera system using a smartphone main camera with a natural perspective; at eye level, natural shooting distance, and subtle depth of field.",
+    ],
+    [
+      "Deutsch",
+      {},
+      "einer modernes Smartphone-Kamerasystem mit hauptkamera des Smartphones mit natürlicher Perspektive; auf Augenhöhe, natürlicher Aufnahmeabstand, dezente Tiefenschärfe. zurückhaltendes Smartphone-HDR. leichte rechnerische Schärfung",
+    ],
+    [
+      "Deutsch",
+      { photoLook: "Klar, aber natürlich" },
+      "einer modernes Smartphone-Kamerasystem mit hauptkamera des Smartphones mit natürlicher Perspektive; auf Augenhöhe, natürlicher Aufnahmeabstand, dezente Tiefenschärfe. ausgewogene, zurückhaltende Smartphone-HDR-Verarbeitung. klare, aber nicht überschärfte rechnerische Detailzeichnung",
+    ],
+  ])("materializes compact camera capture in %s", async (promptLanguage, override, expected) => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage, ...override });
+    const fragments = cameraSection.provide(state)[0]?.fragments ?? [];
+    const compact = fragments.find(({ id }) => id === "camera.compact-capture");
+
+    expect(compact?.text).toBe(expected);
+    expect(compact?.traceIds).toEqual([
+      "camera.device:camera.device",
+      "camera.lens:camera.lens",
+      "camera.perspective:camera.perspective",
+      "camera.photoLook:camera.photo-look",
+      "camera.style:camera.style",
+    ]);
   });
 
   it("does not invent whole-person capture content when resolved framing is absent", async () => {

@@ -26,6 +26,12 @@ const LATE_DAY_WHITE_BALANCE_DE = "leicht warme Farbtemperatur wie spätes Tages
 const LATE_DAY_WHITE_BALANCE_EN = "The image uses a slightly warm color temperature reminiscent of late daylight.";
 const SOURCE_CONSISTENCY_DE = "Schatten, Reflexionen und Haut-Highlights folgen einer klaren, physikalisch glaubwürdigen Lichtquelle.";
 const SOURCE_CONSISTENCY_EN = "Shadows, reflections, and skin highlights must follow one clear, physically plausible light source.";
+const COMPACT_APARTMENT_DE = "in einer modernen Wohnung, im Bereich Wohnzimmer · modern, mit natürlichem Fenster. Die Szene wirkt ruhig und alltäglich. Die Umgebung ist trocken, ohne Nässe-Effekt. Fensterlicht fällt seitlich ein, wirkt weich und erzeugt weich definierte Schatten bei geringem Kontrast. neutraler Weißabgleich mit natürlichen Hautfarben.";
+const COMPACT_APARTMENT_EN = "Scene in an apartment, specifically modern living room with natural window light. Conditions are dry and mild. Window light enters from the side, appears soft, and creates softly defined shadows with low contrast. A neutral white balance with natural skin tones.";
+const COMPACT_TERRACE_DE = "auf einer Terrasse, im Bereich Terrasse eines Stadthauses · ruhig und privat. Es ist sonnig. Direktes Sonnenlicht fällt seitlich ein, wirkt hart und erzeugt klar definierte Schatten mit ausgeprägtem Kontrast. neutraler Weißabgleich mit natürlichen Hautfarben.";
+const COMPACT_TERRACE_EN = "Scene on a terrace, specifically townhouse terrace that feels quiet and private. Conditions are sunny. Direct sunlight enters from the side, appears hard, and creates clearly defined shadows with pronounced contrast. A neutral white balance with natural skin tones.";
+const COMPACT_BEACH_DE = "an einem Strand, im Bereich Bewölkter Strand · diffuse Atmosphäre. Die Szene wirkt warm und reise-moment. Die Umgebung ist trocken, ohne Nässe-Effekt. Diffuses Tageslicht fällt diffus von oben ein, wirkt sehr weich und erzeugt sehr weiche Schatten bei geringem Kontrast. leicht warme Farbtemperatur wie spätes Tageslicht.";
+const COMPACT_BEACH_EN = "Scene on a beach, specifically overcast beach with a diffuse atmosphere. Conditions are overcast. Overcast daylight enters diffusely from above, appears very soft, and creates very soft shadows with low contrast. A slightly warm color temperature reminiscent of late daylight.";
 
 export const sceneLightingSection: PromptSectionProvider = {
   id: "scene-lighting",
@@ -45,6 +51,7 @@ export const sceneLightingSection: PromptSectionProvider = {
     const naturalDetailPaths = isOvercastBeachContext(state.values)
       ? ["scene.area", "scene.location"] as const
       : ["scene.atmosphere"] as const;
+    const compact = hasCompleteBaseline ? createCompactSceneLight(state.values, german) : undefined;
     const fragments = !hasCompleteBaseline ? undefined : german ? [
       createResolvedFragmentDraft(state, "scene-lighting", "scene.environment", environment, ["scene.area", "scene.atmosphere", "scene.location", "scene.mood", "scene.surfaceCondition"]),
       createResolvedFragmentDraft(state, "scene-lighting", "scene.natural-details", naturalDetails, naturalDetailPaths),
@@ -53,12 +60,14 @@ export const sceneLightingSection: PromptSectionProvider = {
       createResolvedFragmentDraft(state, "scene-lighting", "lighting.capture", capture, ["lighting.setup", "lighting.source"]),
       createResolvedFragmentDraft(state, "scene-lighting", "lighting.white-balance", whiteBalance, ["lighting.whiteBalance"]),
       createResolvedFragmentDraft(state, "scene-lighting", "lighting.source-consistency", SOURCE_CONSISTENCY_DE, ["lighting.setup", "lighting.source"]),
+      createResolvedFragmentDraft(state, "scene-lighting", "scene.compact-scene-light", compact!.text, compact!.paths),
     ] : [
       createResolvedFragmentDraft(state, "scene-lighting", "scene.environment", environment, ["scene.area", "scene.atmosphere", "scene.location", "scene.mood", "scene.surfaceCondition"]),
       createResolvedFragmentDraft(state, "scene-lighting", "scene.natural-details", naturalDetails, naturalDetailPaths),
       createResolvedFragmentDraft(state, "scene-lighting", "lighting.capture", capture, ["lighting.setup", "lighting.source"]),
       createResolvedFragmentDraft(state, "scene-lighting", "lighting.white-balance", whiteBalance, ["lighting.whiteBalance"]),
       createResolvedFragmentDraft(state, "scene-lighting", "lighting.source-consistency", SOURCE_CONSISTENCY_EN, ["lighting.setup", "lighting.source"]),
+      createResolvedFragmentDraft(state, "scene-lighting", "scene.compact-scene-light", compact!.text, compact!.paths),
     ];
     const heading = german ? "LOCATION, WETTER & LICHT" : "LOCATION, WEATHER, AND LIGHT";
     const details = hasCompleteBaseline
@@ -69,6 +78,33 @@ export const sceneLightingSection: PromptSectionProvider = {
     return [createResolvedSectionDraft(state, "scene-lighting", `${heading}\n${environment} ${details}`, fragments)];
   },
 };
+
+function createCompactSceneLight(values: unknown, german: boolean): { readonly text: string; readonly paths: readonly string[] } {
+  const scene = objectAt(values, "scene");
+  const location = requiredString(scene, "location");
+  const area = requiredString(scene, "area");
+  if (location === "location.apartment" && area === "locationArea.apartment.modern_living_room_window") {
+    return {
+      text: german ? COMPACT_APARTMENT_DE : COMPACT_APARTMENT_EN,
+      paths: german
+        ? ["scene.area", "scene.location", "scene.mood", "scene.surfaceCondition", "lighting.setup", "lighting.source", "lighting.whiteBalance"]
+        : ["scene.area", "scene.atmosphere", "scene.location", "scene.surfaceCondition", "lighting.setup", "lighting.source", "lighting.whiteBalance"],
+    };
+  }
+  if (location === "Terrasse" && area === "Terrasse eines Stadthauses · ruhig und privat") {
+    return {
+      text: german ? COMPACT_TERRACE_DE : COMPACT_TERRACE_EN,
+      paths: ["scene.area", "scene.atmosphere", "scene.location", "lighting.setup", "lighting.source", "lighting.whiteBalance"],
+    };
+  }
+  if (location === "Strand" && area === "Bewölkter Strand · diffuse Atmosphäre") {
+    return {
+      text: german ? COMPACT_BEACH_DE : COMPACT_BEACH_EN,
+      paths: ["scene.area", "scene.location", "scene.mood", "scene.surfaceCondition", "lighting.setup", "lighting.source", "lighting.whiteBalance"],
+    };
+  }
+  throw new Error(`Unsupported compact scene context: ${location}, ${area}`);
+}
 
 function createEnvironmentContent(values: unknown, german: boolean): string {
   const scene = objectAt(values, "scene");

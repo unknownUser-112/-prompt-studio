@@ -5,6 +5,10 @@ const PERSON_DE = "Zeige genau zwei eindeutig erwachsene Personen: die ausgewäh
 const PERSON_EN = "Show exactly two clearly adult people: the selected primary subject and a distinct random adult woman, positioned beside the primary subject, standing. The primary subject retains every selected identity attribute and remains visually primary. The second person has a clearly distinct identity. Do not merge, clone, duplicate, or exchange faces, bodies, hairstyles, or clothing.";
 const SHARED_SELFIE_PERSON_DE = "Zeige genau zwei eindeutig erwachsene Personen: die ausgewählte Hauptperson und eine deutlich unterscheidbare zufällige erwachsene Frau, die neben der Hauptperson positioniert ist und das Selfie gemeinsam mit ihr aufnimmt. Die Hauptperson behält alle ausgewählten Identitätsmerkmale und bleibt visuell vorrangig. Die zweite Person besitzt eine klar eigenständige Identität. Gesichter, Körper, Frisuren oder Kleidung dürfen nicht verschmolzen, geklont, dupliziert oder vertauscht werden.";
 const SHARED_SELFIE_PERSON_EN = "Show exactly two clearly adult people: the selected primary subject and a distinct random adult woman, positioned beside the primary subject, sharing the selfie. The primary subject retains every selected identity attribute and remains visually primary. The second person has a clearly distinct identity. Do not merge, clone, duplicate, or exchange faces, bodies, hairstyles, or clothing.";
+const COMPACT_PERSON_STANDING_DE = "Zeige genau zwei eindeutig erwachsene Personen: die ausgewählte Hauptperson und eine deutlich unterscheidbare zufällige erwachsene Frau direkt neben der Hauptperson. Die zweite erwachsene Person besitzt eine klar eigenständige Identität und andere Kleidung. Beide Erwachsenen stehen vollständig im Bild; die zweite erwachsene Person ist ebenfalls von Kopf bis Fuß mit beiden sichtbaren Füßen abgebildet. Die Hauptperson bleibt visuell vorrangig. Keine dritte Person, kein geklontes Gesicht, kein doppelter Körper und keine vertauschte Kleidung.";
+const COMPACT_PERSON_STANDING_EN = "Show exactly two clearly adult people: the selected primary subject and a distinct random adult woman, directly beside the primary subject. The second adult has a clearly distinct identity and different clothing. Both adults stand fully inside the frame; the second adult is also visible from head to toe with both feet shown. The primary subject remains visually dominant. No third person, cloned face, duplicate body, or exchanged clothing.";
+const COMPACT_PERSON_SHARED_SELFIE_DE = "Zeige genau zwei eindeutig erwachsene Personen: die ausgewählte Hauptperson und eine deutlich unterscheidbare zufällige erwachsene Frau direkt neben der Hauptperson. Die zweite erwachsene Person besitzt eine klar eigenständige Identität und andere Kleidung. Halte die zweite erwachsene Person vollständig innerhalb des gewählten Bildausschnitts und schneide sie nicht am Rand ab. Die Hauptperson bleibt visuell vorrangig. Keine dritte Person, kein geklontes Gesicht, kein doppelter Körper und keine vertauschte Kleidung.";
+const COMPACT_PERSON_SHARED_SELFIE_EN = "Show exactly two clearly adult people: the selected primary subject and a distinct random adult woman, directly beside the primary subject. The second adult has a clearly distinct identity and different clothing. Keep the second adult fully inside the selected framing and do not crop her at the edge. The primary subject remains visually dominant. No third person, cloned face, duplicate body, or exchanged clothing.";
 const POSITIVE_RESTRICTION_DE = "Füge keine weitere Person über die beiden angegebenen Erwachsenen hinaus hinzu.";
 const POSITIVE_RESTRICTION_EN = "Do not add any person beyond the two specified adults.";
 const TWO_ADULT_IMAGE_GOAL_DE = "Erzeuge eine authentische, unbearbeitet wirkende Aufnahme von zwei realen Erwachsenen. Das Ergebnis soll wie ein glaubwürdig entstandenes Lifestylefoto wirken, nicht wie ein digitales Rendering.";
@@ -34,14 +38,19 @@ export const additionalPersonSection: PromptSectionProvider = {
         : (german ? PERSON_DE : PERSON_EN);
       const restriction = german ? POSITIVE_RESTRICTION_DE : POSITIVE_RESTRICTION_EN;
       const imageGoal = german ? TWO_ADULT_IMAGE_GOAL_DE : TWO_ADULT_IMAGE_GOAL_EN;
+      const compactPerson = sharedSelfie
+        ? (german ? COMPACT_PERSON_SHARED_SELFIE_DE : COMPACT_PERSON_SHARED_SELFIE_EN)
+        : (german ? COMPACT_PERSON_STANDING_DE : COMPACT_PERSON_STANDING_EN);
+      const personPaths = ["additionalPerson.activity", "additionalPerson.enabled", "additionalPerson.position", "additionalPerson.type", "scene.additionalPerson"];
       const fragments = [
         createResolvedFragmentDraft(
           state,
           "additional-person",
           "additional-person.person",
           person,
-          ["additionalPerson.activity", "additionalPerson.enabled", "additionalPerson.position", "additionalPerson.type", "scene.additionalPerson"],
+          personPaths,
         ),
+        createResolvedFragmentDraft(state, "additional-person", "additional-person.compact-contract", compactPerson, personPaths),
         createResolvedFragmentDraft(state, "additional-person", "image-goal.two-adults", imageGoal, ["scene.additionalPerson"]),
         createResolvedFragmentDraft(state, "additional-person", "restrictions.additional-people-authorized", restriction, ["scene.additionalPerson"]),
       ];

@@ -748,4 +748,70 @@ describe("V600 profile matrix", () => {
 
     expect(new TextRenderer().render(document, layout).value).toBe(expected);
   });
+
+  it.each(GOLDEN_SCENARIOS)("renders every Universal scenario byte-identically: $id", async (scenario) => {
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile: "Universal", step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenario.id && entry.profileId === "universal")!.output;
+
+    expect(new TextRenderer().render(document, createUniversalLayout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it.each(GOLDEN_SCENARIOS)("renders every Nano Banana Pro scenario byte-identically: $id", async (scenario) => {
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile: "Nano Banana Pro", step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenario.id && entry.profileId === "nanoBananaPro")!.output;
+
+    expect(new TextRenderer().render(document, createNanoBananaProLayout(document, promptLanguage)).value).toBe(expected);
+  });
 });

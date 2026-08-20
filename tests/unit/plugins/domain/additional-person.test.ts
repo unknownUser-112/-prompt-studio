@@ -109,6 +109,7 @@ describe("additional-person plugin", () => {
     expect(first).toEqual(second);
     expect(fragments.map(({ id }) => id)).toEqual([
       "additional-person.person",
+      "additional-person.compact-contract",
       "image-goal.two-adults",
       "restrictions.additional-people-authorized",
     ]);
@@ -151,6 +152,7 @@ describe("additional-person plugin", () => {
     expect(person?.text).not.toContain("standing");
     expect(fragments.map(({ id }) => id)).toEqual([
       "additional-person.person",
+      "additional-person.compact-contract",
       "image-goal.two-adults",
       "restrictions.additional-people-authorized",
     ]);
@@ -177,6 +179,41 @@ describe("additional-person plugin", () => {
 
     expect(additionalPersonSection.provide(positive)[0]?.fragments?.map(({ id }) => id)).not.toContain("restrictions.additional-people");
     expect(additionalPersonSection.provide(negative)[0]?.fragments?.map(({ id }) => id)).toEqual(["restrictions.additional-people"]);
+  });
+
+  it.each([
+    [
+      "additionalPersonActivity.standing",
+      "Show exactly two clearly adult people: the selected primary subject and a distinct random adult woman, directly beside the primary subject. The second adult has a clearly distinct identity and different clothing. Both adults stand fully inside the frame; the second adult is also visible from head to toe with both feet shown. The primary subject remains visually dominant. No third person, cloned face, duplicate body, or exchanged clothing.",
+    ],
+    [
+      "additionalPersonActivity.shared_selfie",
+      "Show exactly two clearly adult people: the selected primary subject and a distinct random adult woman, directly beside the primary subject. The second adult has a clearly distinct identity and different clothing. Keep the second adult fully inside the selected framing and do not crop her at the edge. The primary subject remains visually dominant. No third person, cloned face, duplicate body, or exchanged clothing.",
+    ],
+  ])("materializes the compact additional-person contract for %s", async (activity, expected) => {
+    const state = await resolve({
+      promptLanguage: "English",
+      additionalPerson: {
+        enabled: true,
+        type: "additionalPerson.randomWoman",
+        position: "additionalPersonPosition.beside",
+        activity,
+      },
+    });
+    const fragments = additionalPersonSection.provide(state)[0]?.fragments ?? [];
+    const compact = fragments.find(({ id }) => id === "additional-person.compact-contract");
+
+    expect(compact?.text).toBe(expected);
+    expect(compact?.traceIds).toEqual([
+      "additionalPerson.activity:additional-person.activity",
+      "additionalPerson.enabled:additional-person.enabled",
+      "additionalPerson.position:additional-person.position",
+      "additionalPerson.type:additional-person.type",
+      "scene.additionalPerson:additional-person.presence",
+    ]);
+    expect(fragments.find(({ id }) => id === "additional-person.person")?.text).toContain(
+      activity === "additionalPersonActivity.shared_selfie" ? "sharing the selfie" : "standing",
+    );
   });
 });
 

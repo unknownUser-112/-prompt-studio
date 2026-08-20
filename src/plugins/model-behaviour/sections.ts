@@ -15,6 +15,10 @@ const SPATIAL_EN = "Credible anatomy and consistent spatial, material, and light
 const CAPTURE_QUALITY_EN = "No artificial skin smoothing, excessive blur, heavy cinematic grading, or watermark.";
 const BRANDING_DE = "Kein sichtbarer Text, keine Logos und kein sonstiges Branding.";
 const BRANDING_EN = "No visible text, logos, or other branding.";
+const COMPACT_REALISM_DE = "Glaubwürdige Anatomie, natürliche Proportionen, realistischer Stofffall, natürliche Haut- und Haarstruktur sowie konsistente Schatten. Keine CGI-Perfektion, keine künstliche Hautglättung und keine übertriebene Schärfung.";
+const COMPACT_REALISM_EN = "Believable anatomy, exact selected body proportions, realistic garment drape, natural skin and hair texture, and one consistent light source. No CGI-like perfection, artificial skin smoothing, or excessive sharpening.";
+const COMPACT_FINAL_DE = "Keine sichtbaren Texte, Logos oder Wasserzeichen.";
+const COMPACT_FINAL_EN = "No visible text, logos, or watermark.";
 const IMAGE_GENERATION_EXECUTION = [
   "Generate exactly one single image now.",
   "Return only the generated image; do not answer with explanatory text.",
@@ -69,9 +73,13 @@ export const modelBehaviourSection: PromptSectionProvider = {
       fragment("realism.photographic-character", "Die Aufnahme zeigt glaubwürdige Anatomie, realistische Raumgeometrie und konsistente Material- und Lichtphysik."),
       fragment("restrictions.capture-quality", "Keine künstliche Hautglättung, keine übertriebene Unschärfe, kein starkes Cinematic Color Grading und kein Wasserzeichen."),
       fragment("restrictions.capture-quality-detailed", "Keine künstliche Hautglättung, keine übertriebene Hintergrundunschärfe, kein starkes Cinematic Color Grading und kein Wasserzeichen."),
+      fragment("realism.compact-photographic", COMPACT_REALISM_DE),
       branding === undefined
         ? fragment("restrictions.branding", brandingRestriction)
         : fragment("restrictions.branding-authorized", brandingRestriction, brandTracePaths(branding)),
+      branding === undefined
+        ? fragment("restrictions.compact-final", COMPACT_FINAL_DE)
+        : fragment("restrictions.compact-final-authorized", compactBrandedRestriction(branding, true), ["brand.allowedGarment", "brand.name"]),
     ] : [
       ...executionFragments,
       fragment("style.general", GENERAL_EN),
@@ -80,9 +88,13 @@ export const modelBehaviourSection: PromptSectionProvider = {
       fragment("realism.photographic-character", "The photograph must show believable anatomy, realistic spatial geometry, and consistent material and lighting physics."),
       fragment("restrictions.capture-quality", CAPTURE_QUALITY_EN),
       fragment("restrictions.capture-quality-detailed", "No artificial skin smoothing, no excessive background blur, no heavy cinematic color grading, and no watermark."),
+      fragment("realism.compact-photographic", COMPACT_REALISM_EN),
       branding === undefined
         ? fragment("restrictions.branding", brandingRestriction)
         : fragment("restrictions.branding-authorized", brandingRestriction, brandTracePaths(branding)),
+      branding === undefined
+        ? fragment("restrictions.compact-final", COMPACT_FINAL_EN)
+        : fragment("restrictions.compact-final-authorized", compactBrandedRestriction(branding, false), ["brand.allowedGarment", "brand.name"]),
     ];
     return [createResolvedSectionDraft(state, "model-behaviour", `${sectionText(german, lens, photoLook, branding, brandingRestriction)}\n`, fragments)];
   },
@@ -148,6 +160,15 @@ function brandedRestriction(branding: ResolvedBranding, german: boolean): string
     ? "Make the logo clearly recognizable while naturally integrated into the material."
     : "Keep the logo small and subtle.";
   return `Authentic branding, including the brand logo, is intentionally visible and permitted only as follows: ${branding.name}: ${garment} only.\n${visibility} Preferred placement: ${placement}.\nThe logo must follow the natural construction of the garment and may appear only where a real product would contain manufacturer branding. Brand lettering is permitted only as part of this explicitly requested branding. No unrelated text, additional or duplicated logos, or branding on other garments, accessories, objects, or the environment.`;
+}
+
+function compactBrandedRestriction(branding: ResolvedBranding, german: boolean): string {
+  if (german) {
+    const garment = branding.allowedGarment === "upper" ? "Oberteil" : "Schuhe";
+    return `Nur die ausdrücklich ausgewählte authentische Markenkennzeichnung ist erlaubt (${branding.name}: ${garment}); keine weiteren Texte oder Logos.`;
+  }
+  const garment = branding.allowedGarment === "footwear" ? "shoes" : "top";
+  return `Only the explicitly selected authentic branding is permitted (${branding.name}: ${garment}); no other text or logos.`;
 }
 
 function brandTracePaths(branding: ResolvedBranding): readonly string[] {

@@ -52,9 +52,11 @@ describe("model-behaviour plugin", () => {
         "realism.photographic-character",
         "restrictions.capture-quality",
         "restrictions.capture-quality-detailed",
+        "realism.compact-photographic",
         "restrictions.branding",
+        "restrictions.compact-final",
       ]
-      : ["style.general", "realism.natural-irregularity", "realism.spatial-material-light", "realism.photographic-character", "restrictions.capture-quality", "restrictions.capture-quality-detailed", "restrictions.branding"]);
+      : ["style.general", "realism.natural-irregularity", "realism.spatial-material-light", "realism.photographic-character", "restrictions.capture-quality", "restrictions.capture-quality-detailed", "realism.compact-photographic", "restrictions.branding", "restrictions.compact-final"]);
     expect(first.fragments?.every(({ traceIds }) => traceIds.length === 1)).toBe(true);
     expect(first.fragments?.every(({ text }) => text.length > 0)).toBe(true);
     expect(first.fragments?.every(({ id }) => !id.includes("gemini"))).toBe(true);
@@ -257,5 +259,64 @@ describe("model-behaviour plugin", () => {
     expect(second).toEqual(first);
     expect(singlePhotograph?.text).toBe(singlePhotographExecutionContract);
     expect(singlePhotograph?.traceIds).toEqual(["model.execution:model-behaviour.execution"]);
+  });
+
+  it.each([
+    [
+      "Deutsch",
+      "Glaubwürdige Anatomie, natürliche Proportionen, realistischer Stofffall, natürliche Haut- und Haarstruktur sowie konsistente Schatten. Keine CGI-Perfektion, keine künstliche Hautglättung und keine übertriebene Schärfung.",
+    ],
+    [
+      "English",
+      "Believable anatomy, exact selected body proportions, realistic garment drape, natural skin and hair texture, and one consistent light source. No CGI-like perfection, artificial skin smoothing, or excessive sharpening.",
+    ],
+  ])("materializes compact photographic realism deterministically in %s", async (promptLanguage, expected) => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage }, [modelBehaviourProvider]);
+    const first = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "realism.compact-photographic");
+    const second = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "realism.compact-photographic");
+
+    expect(first?.text).toBe(expected);
+    expect(first?.traceIds).toEqual(["model.behaviour:model-behaviour.selection"]);
+    expect(second).toEqual(first);
+  });
+
+  it.each([
+    ["Deutsch", "Keine sichtbaren Texte, Logos oder Wasserzeichen."],
+    ["English", "No visible text, logos, or watermark."],
+  ])("materializes only the compact default final restriction in %s", async (promptLanguage, expected) => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage }, [brandProvider, modelBehaviourProvider]);
+    const fragments = modelBehaviourSection.provide(state)[0]?.fragments ?? [];
+    const compact = fragments.filter(({ id }) => id.startsWith("restrictions.compact-final"));
+
+    expect(compact).toEqual([{
+      id: "restrictions.compact-final",
+      text: expected,
+      traceIds: ["model.behaviour:model-behaviour.selection"],
+    }]);
+  });
+
+  it.each([
+    [
+      "Deutsch",
+      { tshirtBrand: "Tommy Hilfiger", brandVisibility: "Dezent sichtbar", brandPlacement: "Brustbereich / Vorderseite" },
+      "Nur die ausdrücklich ausgewählte authentische Markenkennzeichnung ist erlaubt (Tommy Hilfiger: Oberteil); keine weiteren Texte oder Logos.",
+      ["brand.allowedGarment:brand.garment-binding", "brand.name:brand.name"],
+    ],
+    [
+      "English",
+      { shoesBrand: "Nike", shoesModel: "Air Force 1", brandVisibility: "Deutlich sichtbar", brandPlacement: "Schuhseite / Zunge" },
+      "Only the explicitly selected authentic branding is permitted (Nike: shoes); no other text or logos.",
+      ["brand.allowedGarment:brand.garment-binding", "brand.name:brand.name"],
+    ],
+  ])("materializes only the compact authorized final restriction in %s", async (promptLanguage, branding, expected, traceIds) => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), ...branding, promptLanguage }, [brandProvider, modelBehaviourProvider]);
+    const fragments = modelBehaviourSection.provide(state)[0]?.fragments ?? [];
+    const compact = fragments.filter(({ id }) => id.startsWith("restrictions.compact-final"));
+
+    expect(compact).toEqual([{
+      id: "restrictions.compact-final-authorized",
+      text: expected,
+      traceIds,
+    }]);
   });
 });

@@ -240,8 +240,8 @@ describe("scene-lighting plugin", () => {
 
     expect(sceneLightingSection.provide(state)[0]).toEqual(first);
     expect(fragments.map(({ id }) => id)).toEqual(promptLanguage === "Deutsch"
-      ? ["scene.environment", "scene.natural-details", "lighting.coordination", "scene.surface-details", "lighting.capture", "lighting.white-balance", "lighting.source-consistency"]
-      : ["scene.environment", "scene.natural-details", "lighting.capture", "lighting.white-balance", "lighting.source-consistency"]);
+      ? ["scene.environment", "scene.natural-details", "lighting.coordination", "scene.surface-details", "lighting.capture", "lighting.white-balance", "lighting.source-consistency", "scene.compact-scene-light"]
+      : ["scene.environment", "scene.natural-details", "lighting.capture", "lighting.white-balance", "lighting.source-consistency", "scene.compact-scene-light"]);
     expect(fragments.every(({ text }) => !/^(LOCATION|SZENE)/u.test(text))).toBe(true);
     expect(fragments.every(({ traceIds }) => traceIds.length > 0)).toBe(true);
   });
@@ -339,6 +339,60 @@ describe("scene-lighting plugin", () => {
     expect(sourceConsistency?.traceIds).toEqual([
       state.trace.entries.find(({ path }) => path === "lighting.setup")!.id,
       sourceTrace.id,
+    ]);
+  });
+
+  it.each([
+    [
+      "English",
+      {},
+      "Scene in an apartment, specifically modern living room with natural window light. Conditions are dry and mild. Window light enters from the side, appears soft, and creates softly defined shadows with low contrast. A neutral white balance with natural skin tones.",
+    ],
+    [
+      "Deutsch",
+      {},
+      "in einer modernen Wohnung, im Bereich Wohnzimmer · modern, mit natürlichem Fenster. Die Szene wirkt ruhig und alltäglich. Die Umgebung ist trocken, ohne Nässe-Effekt. Fensterlicht fällt seitlich ein, wirkt weich und erzeugt weich definierte Schatten bei geringem Kontrast. neutraler Weißabgleich mit natürlichen Hautfarben.",
+    ],
+    [
+      "English",
+      { location: "Terrasse", locationArea: "Terrasse eines Stadthauses · ruhig und privat" },
+      "Scene on a terrace, specifically townhouse terrace that feels quiet and private. Conditions are sunny. Direct sunlight enters from the side, appears hard, and creates clearly defined shadows with pronounced contrast. A neutral white balance with natural skin tones.",
+    ],
+  ])("materializes the compact scene-and-light fragment in %s", async (promptLanguage, override, expected) => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage, ...override });
+    const fragments = sceneLightingSection.provide(state)[0]?.fragments ?? [];
+    const compact = fragments.find(({ id }) => id === "scene.compact-scene-light");
+
+    expect(compact?.text).toBe(expected);
+    expect(compact?.traceIds.length).toBeGreaterThan(0);
+    expect(compact?.traceIds.every((id) => /^(scene|lighting)\./u.test(id))).toBe(true);
+    expect(sceneLightingSection.provide(state)[0]?.fragments?.find(({ id }) => id === "scene.environment")?.text).toBeTruthy();
+  });
+
+  it("materializes the compact overcast beach from the resolved context with exact provenance", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "Deutsch",
+      location: "Strand",
+      locationArea: "Bewölkter Strand · diffuse Atmosphäre",
+      weatherMode: "Manuell",
+      lightMode: "Erweitert",
+      primaryLight: "Direkte Sonne",
+      featureSelections: { weather: { condition: { enabled: true, intensity: "Bewölkt" } } },
+    });
+    const compact = sceneLightingSection.provide(state)[0]?.fragments?.find(({ id }) => id === "scene.compact-scene-light");
+
+    expect(compact?.text).toBe(
+      "an einem Strand, im Bereich Bewölkter Strand · diffuse Atmosphäre. Die Szene wirkt warm und reise-moment. Die Umgebung ist trocken, ohne Nässe-Effekt. Diffuses Tageslicht fällt diffus von oben ein, wirkt sehr weich und erzeugt sehr weiche Schatten bei geringem Kontrast. leicht warme Farbtemperatur wie spätes Tageslicht.",
+    );
+    expect(compact?.traceIds).toEqual([
+      "lighting.setup:scene-lighting.lighting-setup",
+      "lighting.source:scene-lighting.lighting-source",
+      "lighting.whiteBalance:scene-lighting.lighting-white-balance",
+      "scene.area:scene-lighting.scene-area",
+      "scene.location:scene-lighting.scene-location",
+      "scene.mood:scene-lighting.scene-mood",
+      "scene.surfaceCondition:scene-lighting.scene-surface-condition",
     ]);
   });
 });

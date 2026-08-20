@@ -285,14 +285,136 @@ describe("brand, garment and safety plugins", () => {
 
     expect(garmentSection.provide(state)[0]).toEqual(first);
     expect(fragments.map(({ id }) => id)).toEqual(promptLanguage === "Deutsch"
-      ? ["garment.outfit", "garment.outfit-build", "garment.material-behaviour"]
-      : ["garment.outfit", "garment.material-behaviour"]);
+      ? ["garment.outfit", "garment.compact-selection-restriction", "garment.outfit-build", "garment.material-behaviour"]
+      : ["garment.outfit", "garment.compact-selection-restriction", "garment.material-behaviour"]);
     expect(fragments.every(({ text }) => !/^OUTFIT/u.test(text))).toBe(true);
     expect(new Set(fragments.flatMap(({ traceIds }) => traceIds))).toEqual(new Set(
-      promptLanguage === "Deutsch"
-        ? first.traceIds
-        : first.traceIds.filter((id) => !id.startsWith("garment.outfitBuild:")),
+      first.traceIds,
     ));
+  });
+
+  it.each([
+    [
+      "Deutsch",
+      "Outfit und Materialien: ein klassisches T-Shirt in Weiß (Baumwolle); eine High-Waist-Jeans in Denimblau (Denim); weiße klassische Sneaker (Leder-Textil-Mischung).",
+    ],
+    [
+      "English",
+      "Outfit and materials: a classic T-shirt in white (cotton); high-waisted jeans in denim blue (denim); classic white sneakers (leather-textile blend).",
+    ],
+  ])("materializes the compact outfit from resolved garment and material values in %s", async (promptLanguage, expected) => {
+    const state = await resolve(
+      { ...createCanonicalProjectStateV5Values(), promptLanguage },
+      [garmentProvider, materialPhysicsProvider],
+    );
+    const fragments = garmentSection.provide(state)[0]?.fragments ?? [];
+    const compact = fragments.find(({ id }) => id === "garment.compact-outfit");
+    const existing = fragments.find(({ id }) => id === "garment.outfit");
+
+    expect(compact?.text).toBe(expected);
+    expect(compact?.text).not.toMatch(/EXAKTES OUTFIT|EXACT OUTFIT/u);
+    expect(compact?.traceIds).toEqual([
+      "garment.footwear.color:garment.footwear-color",
+      "garment.footwear.kind:garment.footwear-kind",
+      "garment.lower.color:garment.lower-color",
+      "garment.lower.kind:garment.lower-kind",
+      "garment.upper.color:garment.upper-color",
+      "garment.upper.kind:garment.upper-kind",
+      "material.footwear:material-physics.footwear-material",
+      "material.lower:material-physics.lower-material",
+      "material.upper:material-physics.upper-material",
+    ]);
+    expect(existing?.text).toBe(promptLanguage === "Deutsch"
+      ? "Sie trägt ein klassisches T-Shirt in Weiß, eine High-Waist-Jeans in Denimblau und weiße klassische Sneaker."
+      : "She wears a classic T-shirt in white, high-waisted jeans in denim blue, and classic white sneakers.");
+  });
+
+  it("materializes a different compact outfit dynamically from the resolved open-garment state", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "English",
+      tshirt: "ein offen getragenes, luftiges Voile-Hemd mit feiner Webstruktur",
+      tshirtColor: "Weiß",
+      tshirtMaterial: "Voile",
+      bra: "kein BH sichtbar / nicht Teil des Outfits",
+      sweater: "kein Pullover",
+      jacket: "keine Jacke",
+      outfitBuild: "Einzelne saubere Schicht",
+    }, [garmentProvider, materialPhysicsProvider]);
+    const fragments = garmentSection.provide(state)[0]?.fragments ?? [];
+
+    expect(fragments.find(({ id }) => id === "garment.compact-outfit")?.text).toBe(
+      "Outfit and materials: an airy voile shirt worn open with a fine woven texture in white (Voile); classic white sneakers (leather-textile blend).",
+    );
+    expect(fragments.find(({ id }) => id === "garment.outfit")?.text).toBe(
+      "She wears an airy voile shirt worn open with a fine woven texture in white and classic white sneakers.",
+    );
+  });
+
+  it.each([
+    ["Deutsch", "Keine nicht ausgewählten Kleidungsstücke oder zusätzlichen Schichten ergänzen."],
+    ["English", "Do not add any unselected garment or extra layer."],
+  ])("materializes the compact garment selection restriction in %s", async (promptLanguage, expected) => {
+    const state = await resolve(
+      { ...createCanonicalProjectStateV5Values(), promptLanguage },
+      [garmentProvider, materialPhysicsProvider],
+    );
+    const fragment = garmentSection.provide(state)[0]?.fragments?.find(
+      ({ id }) => id === "garment.compact-selection-restriction",
+    );
+
+    expect(fragment?.text).toBe(expected);
+    expect(fragment?.traceIds).toEqual(["garment.outfitBuild:garment.outfit-build"]);
+    expect(garmentSection.provide(state)[0]?.fragments?.find(({ id }) => id === "garment.outfit")?.text).toBe(
+      promptLanguage === "Deutsch"
+        ? "Sie trägt ein klassisches T-Shirt in Weiß, eine High-Waist-Jeans in Denimblau und weiße klassische Sneaker."
+        : "She wears a classic T-shirt in white, high-waisted jeans in denim blue, and classic white sneakers.",
+    );
+  });
+
+  it.each([
+    [
+      "English",
+      {
+        tshirt: "ein offen getragenes, luftiges Voile-Hemd mit feiner Webstruktur",
+        tshirtColor: "Weiß",
+        tshirtMaterial: "Voile",
+        bra: "kein BH sichtbar / nicht Teil des Outfits",
+        sweater: "kein Pullover",
+        jacket: "keine Jacke",
+        outfitBuild: "Einzelne saubere Schicht",
+      },
+      "The selected garment, an airy voile shirt worn open with a fine woven texture in white, is the primary subject's only upper-body garment. Every front button is visibly undone from collar to lower hem. The two front panels remain visibly separated as an open shirt front along the torso and drape naturally according to the material, posture, and gravity. The shirt must not read as buttoned, fastened, closed, or replaced by another top. No T-shirt, tank top, camisole, crop top, bodysuit, undershirt, base layer, bralette, bra, sweater, cardigan, or other top is worn beneath or over it. Keep the presentation incidental, realistic, and non-sexualized; do not eroticize or visually emphasize the chest area.",
+    ],
+    [
+      "Deutsch",
+      {
+        tshirt: "eine offen getragene, leichte Organza-Bluse mit klarer Stoffstruktur",
+        tshirtMaterialMode: "Manuell",
+        tshirtMaterial: "Organza",
+      },
+      "Das eine offen getragene, leichte Organza-Bluse mit klarer Stoffstruktur in Weiß aus Organza ist das einzige Oberkörper-Kleidungsstück der Hauptperson. Alle vorderen Knöpfe sind vom Kragen bis zum unteren Saum sichtbar geöffnet. Die beiden Vorderteile bleiben entlang des Oberkörpers als offene Hemdfront erkennbar und fallen entsprechend Material, Körperhaltung und Schwerkraft natürlich. Das Hemd darf nicht wie zugeknöpft, geschlossen oder durch ein anderes Oberteil ersetzt wirken. Darunter oder darüber befindet sich kein T-Shirt, Tanktop, Camisole, Crop-Top, Body, Unterhemd, Baselayer, Bralette, BH, Pullover, Cardigan oder anderes Oberteil. Die Darstellung bleibt beiläufig, realistisch und nicht sexualisiert; der Brustbereich wird weder hervorgehoben noch erotisiert.",
+    ],
+  ])("materializes the compact upper-body layer contract for %s", async (promptLanguage, overrides, expected) => {
+    const state = await resolve(
+      { ...createCanonicalProjectStateV5Values(), ...overrides, promptLanguage },
+      [garmentProvider, materialPhysicsProvider],
+    );
+    const fragment = garmentSection.provide(state)[0]?.fragments?.find(
+      ({ id }) => id === "garment.compact-upper-layer-contract",
+    );
+
+    expect(fragment?.text).toBe(expected);
+    expect(fragment?.traceIds).toEqual([
+      "garment.open:garment.open-state",
+      "garment.outfitBuild:garment.outfit-build",
+      "garment.upper.color:garment.upper-color",
+      "garment.upper.kind:garment.upper-kind",
+      "material.upper:material-physics.upper-material",
+    ]);
+    expect(garmentSection.provide(state)[0]?.fragments?.filter(
+      ({ id }) => ["garment.state", "garment.upper-body", "garment.layering"].includes(id),
+    )).toHaveLength(3);
   });
 
   it.each([

@@ -11,6 +11,10 @@ const PLURAL_CAPTURE_DE = "Oberkörperaufnahme mit natürlichem Kameraabstand. V
 const PLURAL_CAPTURE_EN = "upper-body frame with a natural camera distance. Use one continuous portrait frame only, without a full-body alternative, comparison view, or repeated subject. Prioritize the face, eyes, skin, and hair detail; do not add full-body framing requirements. A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. Both adults fit naturally within the frame; there is no external photographer.";
 const PLURAL_GEOMETRY_DE = "Ein handgehaltenes Frontkamera-Selfie aus plausibler Armlängendistanz mit leichter, realistischer Weitwinkelperspektive der Frontkamera. Beide Erwachsenen passen natürlich in den Bildrahmen; es gibt keine externe fotografierende Person. Halte die Geometrie von haltendem Arm und Smartphone anatomisch plausibel.";
 const PLURAL_GEOMETRY_EN = "A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. Both adults fit naturally within the frame; there is no external photographer. Keep the holding arm and smartphone geometry anatomically plausible.";
+const COMPACT_CAPTURE_DE = "Handheld-Selfie mit der Smartphone-Frontkamera aus plausibler Armlänge und leichter realistischer Weitwinkelwirkung. Die Hauptperson passt natürlich in den Bildausschnitt; es gibt keine externe fotografierende Person.";
+const COMPACT_CAPTURE_EN = "A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. The adult subject fits naturally within the frame; there is no external photographer.";
+const COMPACT_PLURAL_CAPTURE_DE = "Handheld-Selfie mit der Smartphone-Frontkamera aus plausibler Armlänge und leichter realistischer Weitwinkelwirkung. Beide Erwachsenen passen natürlich in den Bildausschnitt; es gibt keine externe fotografierende Person.";
+const COMPACT_PLURAL_CAPTURE_EN = "A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. Both adults fit naturally within the frame; there is no external photographer.";
 const BINDING_PATHS = ["camera.device", "camera.framing", "selfieMode.enabled", "selfieMode.type"] as const;
 const CAPTURE_PATHS = ["camera.device", "camera.framing", "selfieMode.enabled", "selfieMode.phoneVisibility", "selfieMode.type"] as const;
 
@@ -27,6 +31,9 @@ export const selfieSection: PromptSectionProvider = {
       createResolvedFragmentDraft(state, "selfie", "selfie.capture", plural
         ? (german ? PLURAL_CAPTURE_DE : PLURAL_CAPTURE_EN)
         : (german ? CAPTURE_DE : CAPTURE_EN), capturePaths),
+      createResolvedFragmentDraft(state, "selfie", "selfie.compact-capture", plural
+        ? (german ? COMPACT_PLURAL_CAPTURE_DE : COMPACT_PLURAL_CAPTURE_EN)
+        : (german ? COMPACT_CAPTURE_DE : COMPACT_CAPTURE_EN), capturePaths),
       createResolvedFragmentDraft(state, "selfie", "selfie.geometry", plural
         ? (german ? PLURAL_GEOMETRY_DE : PLURAL_GEOMETRY_EN)
         : (german ? GEOMETRY_DE : GEOMETRY_EN), capturePaths),

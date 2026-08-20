@@ -76,7 +76,7 @@ export function createUniversalLayout(
   const primaryBlocks = openGarment
     ? openOrganza
       ? openOrganzaBlocks(modeBlocks, german)
-      : openVoileBlocks(modeBlocks, german)
+      : openVoileBlocks(modeBlocks, german, selfie)
     : modeBlocks;
   return {
     id: PROFILE_IDS.universal,
@@ -98,13 +98,19 @@ function selfieBlocks(blocks: readonly TextLayoutBlock[], german: boolean): read
   ];
 }
 
-function openVoileBlocks(blocks: readonly TextLayoutBlock[], german: boolean): readonly TextLayoutBlock[] {
+function openVoileBlocks(
+  blocks: readonly TextLayoutBlock[],
+  german: boolean,
+  selfie: boolean,
+): readonly TextLayoutBlock[] {
+  const garmentIndex = selfie ? 4 : 3;
+  const poseIndex = garmentIndex + 1;
   return [
-    ...blocks.slice(0, 3),
+    ...blocks.slice(0, garmentIndex),
     { ...group(german ? "VERBINDLICHER KLEIDUNGSZUSTAND" : "BINDING GARMENT STATE", [fragment("garment.state")]), separatorBefore: "\n" },
     { ...openGarmentOutfitBlock(german), separatorBefore: "\n\n\n" },
-    { ...blocks[4]!, separatorBefore: "\n\n" },
-    ...blocks.slice(5),
+    { ...blocks[poseIndex]!, separatorBefore: "\n\n" },
+    ...blocks.slice(poseIndex + 1),
   ];
 }
 
