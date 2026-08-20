@@ -103,10 +103,15 @@ describe("additional-person plugin", () => {
     const second = additionalPersonSection.provide(state)[0]!;
     const fragments = first.fragments ?? [];
     const person = fragments.find(({ id }) => id === "additional-person.person");
-    const restriction = fragments.find(({ id }) => id === "restrictions.additional-people");
+    const restriction = fragments.find(({ id }) => id === "restrictions.additional-people-authorized");
+    const imageGoal = fragments.find(({ id }) => id === "image-goal.two-adults");
 
     expect(first).toEqual(second);
-    expect(fragments.map(({ id }) => id)).toEqual(["additional-person.person", "restrictions.additional-people"]);
+    expect(fragments.map(({ id }) => id)).toEqual([
+      "additional-person.person",
+      "image-goal.two-adults",
+      "restrictions.additional-people-authorized",
+    ]);
     expect(person?.text).not.toMatch(/^ADDITIONAL PERSON\n/u);
     expect(person?.text).toContain(promptLanguage === "Deutsch" ? "neben der Hauptperson" : "positioned beside the primary subject, standing");
     expect(person?.traceIds).toEqual([
@@ -120,6 +125,58 @@ describe("additional-person plugin", () => {
       ? "Füge keine weitere Person über die beiden angegebenen Erwachsenen hinaus hinzu."
       : "Do not add any person beyond the two specified adults.");
     expect(restriction?.traceIds).toEqual(["scene.additionalPerson:additional-person.presence"]);
+    expect(imageGoal?.text).toBe(promptLanguage === "Deutsch"
+      ? "Erzeuge eine authentische, unbearbeitet wirkende Aufnahme von zwei realen Erwachsenen. Das Ergebnis soll wie ein glaubwürdig entstandenes Lifestylefoto wirken, nicht wie ein digitales Rendering."
+      : "Create an authentic, unretouched-looking photograph of two real adults. The result should feel like a genuinely captured lifestyle photograph, not a digital rendering.");
+    expect(imageGoal?.traceIds).toEqual(["scene.additionalPerson:additional-person.presence"]);
+  });
+
+  it("materializes shared-selfie semantics without falling back to standing", async () => {
+    const state = await resolve({
+      promptLanguage: "English",
+      additionalPerson: {
+        enabled: true,
+        type: "additionalPerson.randomWoman",
+        position: "additionalPersonPosition.beside",
+        activity: "additionalPersonActivity.shared_selfie",
+      },
+    });
+    const section = additionalPersonSection.provide(state)[0]!;
+    const fragments = section.fragments ?? [];
+    const person = fragments.find(({ id }) => id === "additional-person.person");
+
+    expect(person?.text).toBe(
+      "Show exactly two clearly adult people: the selected primary subject and a distinct random adult woman, positioned beside the primary subject, sharing the selfie. The primary subject retains every selected identity attribute and remains visually primary. The second person has a clearly distinct identity. Do not merge, clone, duplicate, or exchange faces, bodies, hairstyles, or clothing.",
+    );
+    expect(person?.text).not.toContain("standing");
+    expect(fragments.map(({ id }) => id)).toEqual([
+      "additional-person.person",
+      "image-goal.two-adults",
+      "restrictions.additional-people-authorized",
+    ]);
+    expect(person?.traceIds).toEqual([
+      "additionalPerson.activity:additional-person.activity",
+      "additionalPerson.enabled:additional-person.enabled",
+      "additionalPerson.position:additional-person.position",
+      "additionalPerson.type:additional-person.type",
+      "scene.additionalPerson:additional-person.presence",
+    ]);
+  });
+
+  it("materializes exactly one positive or negative additional-person restriction", async () => {
+    const positive = await resolve({
+      promptLanguage: "English",
+      additionalPerson: {
+        enabled: true,
+        type: "additionalPerson.randomWoman",
+        position: "additionalPersonPosition.beside",
+        activity: "additionalPersonActivity.standing",
+      },
+    });
+    const negative = await resolve({ promptLanguage: "English", scene: { additionalPerson: false } });
+
+    expect(additionalPersonSection.provide(positive)[0]?.fragments?.map(({ id }) => id)).not.toContain("restrictions.additional-people");
+    expect(additionalPersonSection.provide(negative)[0]?.fragments?.map(({ id }) => id)).toEqual(["restrictions.additional-people"]);
   });
 });
 

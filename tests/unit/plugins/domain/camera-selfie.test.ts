@@ -8,10 +8,16 @@ import { ConstraintEngine } from "../../../../src/domain/engines/constraint-engi
 import { createResolvedStateBuilder } from "../../../../src/domain/engines/resolved-state-builder";
 import { createFixedRuntime } from "../../../helpers/fixed-runtime";
 import { createCanonicalProjectStateV5Values } from "../../../../src/domain/entities/project-factory";
+import { additionalPersonProvider } from "../../../../src/plugins/additional-person/rules";
 
 const resolve = (input: unknown, reversed = false) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
   input,
   reversed ? [selfieProvider, cameraProvider] : [cameraProvider, selfieProvider],
+);
+
+const resolveSharedSelfie = (input: unknown) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+  input,
+  [additionalPersonProvider, cameraProvider, selfieProvider],
 );
 
 const UPPER_BODY_EN = "upper-body frame with a natural camera distance. Use one continuous portrait frame only, without a full-body alternative, comparison view, or repeated subject. Prioritize the face, eyes, skin, and hair detail; do not add full-body framing requirements. Captured with a modern smartphone camera system using a smartphone main camera with a natural perspective. The camera is at eye level. The shooting distance feels natural. Depth of field is subtle, and the shot feels calm and handheld. The framing should resemble a naturally captured smartphone photo rather than a carefully staged fashion campaign.";
@@ -193,6 +199,46 @@ describe("camera and selfie plugins", () => {
     const state = await resolve({ selfieMode: { enabled: false, type: "selfie.none", phoneVisibility: "selfiePhone.auto" } });
 
     expect(selfieSection.provide(state)[0]?.fragments).toBeUndefined();
+  });
+
+  it.each([
+    [
+      "Deutsch",
+      "Oberkörperaufnahme mit natürlichem Kameraabstand. Verwende nur einen einzigen durchgehenden Porträtrahmen, ohne Ganzkörperalternative, Vergleichsansicht oder wiederholte Person. Priorisiere Gesicht, Augen, Haut und Haardetails; füge keine Ganzkörperanforderungen hinzu. Ein handgehaltenes Frontkamera-Selfie aus plausibler Armlängendistanz mit leichter, realistischer Weitwinkelperspektive der Frontkamera. Beide Erwachsenen passen natürlich in den Bildrahmen; es gibt keine externe fotografierende Person.",
+      "Ein handgehaltenes Frontkamera-Selfie aus plausibler Armlängendistanz mit leichter, realistischer Weitwinkelperspektive der Frontkamera. Beide Erwachsenen passen natürlich in den Bildrahmen; es gibt keine externe fotografierende Person. Halte die Geometrie von haltendem Arm und Smartphone anatomisch plausibel.",
+    ],
+    [
+      "English",
+      "upper-body frame with a natural camera distance. Use one continuous portrait frame only, without a full-body alternative, comparison view, or repeated subject. Prioritize the face, eyes, skin, and hair detail; do not add full-body framing requirements. A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. Both adults fit naturally within the frame; there is no external photographer.",
+      "A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. Both adults fit naturally within the frame; there is no external photographer. Keep the holding arm and smartphone geometry anatomically plausible.",
+    ],
+  ])("materializes plural selfie capture and geometry with cross-provider provenance in %s", async (promptLanguage, captureText, geometryText) => {
+    const state = await resolveSharedSelfie({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage,
+      selfieMode: { enabled: true, type: "selfie.front", phoneVisibility: "selfiePhone.auto" },
+      additionalPerson: {
+        enabled: true,
+        type: "additionalPerson.randomWoman",
+        position: "additionalPersonPosition.beside",
+        activity: "additionalPersonActivity.shared_selfie",
+      },
+    });
+    const fragments = selfieSection.provide(state)[0]?.fragments ?? [];
+    const capture = fragments.find(({ id }) => id === "selfie.capture");
+    const geometry = fragments.find(({ id }) => id === "selfie.geometry");
+
+    expect(capture?.text).toBe(captureText);
+    expect(geometry?.text).toBe(geometryText);
+    expect(capture?.traceIds).toEqual([
+      "camera.device:selfie.camera-binding",
+      "camera.framing:selfie.framing-binding",
+      "scene.additionalPerson:additional-person.presence",
+      "selfieMode.enabled:selfie.enabled",
+      "selfieMode.phoneVisibility:selfie.phone-visibility",
+      "selfieMode.type:selfie.type",
+    ]);
+    expect(geometry?.traceIds).toEqual(capture?.traceIds);
   });
 
   it.each([

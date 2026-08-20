@@ -7,6 +7,10 @@ const CAPTURE_DE = "Oberkörperaufnahme mit natürlichem Kameraabstand. Verwende
 const CAPTURE_EN = "upper-body frame with a natural camera distance. Use one continuous portrait frame only, without a full-body alternative, comparison view, or repeated subject. Prioritize the face, eyes, skin, and hair detail; do not add full-body framing requirements. A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. The adult subject fits naturally within the frame; there is no external photographer.";
 const GEOMETRY_DE = "Ein handgehaltenes Frontkamera-Selfie aus plausibler Armlängendistanz mit leichter, realistischer Weitwinkelperspektive der Frontkamera. Die erwachsene Person passt natürlich in den Bildrahmen; es gibt keine externe fotografierende Person. Halte die Geometrie von haltendem Arm und Smartphone anatomisch plausibel.";
 const GEOMETRY_EN = "A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. The adult subject fits naturally within the frame; there is no external photographer. Keep the holding arm and smartphone geometry anatomically plausible.";
+const PLURAL_CAPTURE_DE = "Oberkörperaufnahme mit natürlichem Kameraabstand. Verwende nur einen einzigen durchgehenden Porträtrahmen, ohne Ganzkörperalternative, Vergleichsansicht oder wiederholte Person. Priorisiere Gesicht, Augen, Haut und Haardetails; füge keine Ganzkörperanforderungen hinzu. Ein handgehaltenes Frontkamera-Selfie aus plausibler Armlängendistanz mit leichter, realistischer Weitwinkelperspektive der Frontkamera. Beide Erwachsenen passen natürlich in den Bildrahmen; es gibt keine externe fotografierende Person.";
+const PLURAL_CAPTURE_EN = "upper-body frame with a natural camera distance. Use one continuous portrait frame only, without a full-body alternative, comparison view, or repeated subject. Prioritize the face, eyes, skin, and hair detail; do not add full-body framing requirements. A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. Both adults fit naturally within the frame; there is no external photographer.";
+const PLURAL_GEOMETRY_DE = "Ein handgehaltenes Frontkamera-Selfie aus plausibler Armlängendistanz mit leichter, realistischer Weitwinkelperspektive der Frontkamera. Beide Erwachsenen passen natürlich in den Bildrahmen; es gibt keine externe fotografierende Person. Halte die Geometrie von haltendem Arm und Smartphone anatomisch plausibel.";
+const PLURAL_GEOMETRY_EN = "A handheld front-camera selfie at a plausible arm-length distance with mild, realistic front-camera wide-angle perspective. Both adults fit naturally within the frame; there is no external photographer. Keep the holding arm and smartphone geometry anatomically plausible.";
 const BINDING_PATHS = ["camera.device", "camera.framing", "selfieMode.enabled", "selfieMode.type"] as const;
 const CAPTURE_PATHS = ["camera.device", "camera.framing", "selfieMode.enabled", "selfieMode.phoneVisibility", "selfieMode.type"] as const;
 
@@ -16,10 +20,16 @@ export const selfieSection: PromptSectionProvider = {
     const mode = objectAt(state.values, "selfieMode");
     const enabled = mode?.enabled === true && mode.type === "selfie.front" && typeof mode.phoneVisibility === "string";
     const german = state.facts.values.promptLanguage === "Deutsch";
+    const plural = nestedValue(state.values, "scene", "additionalPerson") === true;
+    const capturePaths = plural ? [...CAPTURE_PATHS, "scene.additionalPerson"] : CAPTURE_PATHS;
     const fragments = enabled ? [
       createResolvedFragmentDraft(state, "selfie", "selfie.binding", german ? BINDING_DE : BINDING_EN, BINDING_PATHS),
-      createResolvedFragmentDraft(state, "selfie", "selfie.capture", german ? CAPTURE_DE : CAPTURE_EN, CAPTURE_PATHS),
-      createResolvedFragmentDraft(state, "selfie", "selfie.geometry", german ? GEOMETRY_DE : GEOMETRY_EN, CAPTURE_PATHS),
+      createResolvedFragmentDraft(state, "selfie", "selfie.capture", plural
+        ? (german ? PLURAL_CAPTURE_DE : PLURAL_CAPTURE_EN)
+        : (german ? CAPTURE_DE : CAPTURE_EN), capturePaths),
+      createResolvedFragmentDraft(state, "selfie", "selfie.geometry", plural
+        ? (german ? PLURAL_GEOMETRY_DE : PLURAL_GEOMETRY_EN)
+        : (german ? GEOMETRY_DE : GEOMETRY_EN), capturePaths),
     ] : undefined;
     return [createResolvedSectionDraft(state, "selfie", "Selfie binding", fragments)];
   },
@@ -31,4 +41,8 @@ function objectAt(value: unknown, key: string): Readonly<Record<string, unknown>
   return child !== null && !Array.isArray(child) && typeof child === "object"
     ? child as Readonly<Record<string, unknown>>
     : undefined;
+}
+
+function nestedValue(value: unknown, first: string, second: string): unknown {
+  return objectAt(value, first)?.[second];
 }

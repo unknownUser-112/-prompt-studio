@@ -12,11 +12,14 @@ export function createGeminiProLayout(
   const referenceSheet = hasFragment(document, "character.reference-sheet");
   const singleReference = hasFragment(document, "character.single-reference");
   const selfie = hasFragment(document, "selfie.binding");
+  const additionalPerson = hasFragment(document, "additional-person.person");
   const openGarment = hasFragment(document, "garment.state");
   const openOrganza = openGarment && hasFragment(document, "garment.outfit-build");
   const authorizedBranding = document.sections.some((section) => section.fragments.some(({ id }) => id === "restrictions.branding-authorized"));
   const execution = document.sections.some((section) => section.fragments.some(({ id }) => id === "execution.image-generation"));
-  const baselineBlocks = german ? germanBlocks(authorizedBranding) : englishBlocks(authorizedBranding);
+  const baselineBlocks = german
+    ? germanBlocks(authorizedBranding, additionalPerson)
+    : englishBlocks(authorizedBranding, additionalPerson);
   const modeBlocks = referenceSheet
     ? referenceSheetBlocks(german)
     : singleReference
@@ -24,12 +27,24 @@ export function createGeminiProLayout(
       : selfie
         ? selfieBlocks(baselineBlocks, german)
         : baselineBlocks;
-  const blocks = openGarment ? openGarmentBlocks(modeBlocks, german, openOrganza) : modeBlocks;
+  const garmentBlocks = openGarment ? openGarmentBlocks(modeBlocks, german, openOrganza, selfie) : modeBlocks;
+  const blocks = additionalPerson ? additionalPersonBlocks(garmentBlocks, german) : garmentBlocks;
   return {
     id: PROFILE_IDS.geminiPro,
     sections: document.sections.map((section, order) => ({ sectionId: section.id, order })),
     textBlocks: execution ? withExecutionContract(blocks) : blocks,
   };
+}
+
+function additionalPersonBlocks(blocks: readonly TextLayoutBlock[], german: boolean): readonly TextLayoutBlock[] {
+  const restrictionsIndex = blocks.findIndex((block) => block.kind === "group" && block.heading === "RESTRICTIONS");
+  if (restrictionsIndex < 0) return blocks;
+  return [
+    ...blocks.slice(0, restrictionsIndex),
+    group(german ? "ZUSÄTZLICHE PERSON" : "ADDITIONAL PERSON", [fragment("additional-person.person")]),
+    { ...blocks[restrictionsIndex]!, separatorBefore: "\n" },
+    ...blocks.slice(restrictionsIndex + 1),
+  ];
 }
 
 function selfieBlocks(blocks: readonly TextLayoutBlock[], german: boolean): readonly TextLayoutBlock[] {
@@ -45,7 +60,7 @@ function selfieBlocks(blocks: readonly TextLayoutBlock[], german: boolean): read
   ];
 }
 
-function openGarmentBlocks(blocks: readonly TextLayoutBlock[], german: boolean, organza: boolean): readonly TextLayoutBlock[] {
+function openGarmentBlocks(blocks: readonly TextLayoutBlock[], german: boolean, organza: boolean, selfie: boolean): readonly TextLayoutBlock[] {
   const state = { ...group(german ? "VERBINDLICHER KLEIDUNGSZUSTAND" : "BINDING GARMENT STATE", [fragment("garment.state")]), separatorBefore: "\n" };
   if (organza) {
     return [
@@ -56,14 +71,15 @@ function openGarmentBlocks(blocks: readonly TextLayoutBlock[], german: boolean, 
       { ...group(german ? "OBERKÖRPER-SCHICHTREGEL" : "UPPER-BODY LAYER RULE", [fragment("garment.upper-body"), fragment("garment.layering")], " "), separatorBefore: "\n\n" },
     ];
   }
+  const outfitIndex = selfie ? 5 : 4;
   return [
-    ...blocks.slice(0, 4),
+    ...blocks.slice(0, outfitIndex),
     state,
     { ...group("OUTFIT AND MATERIALS", [
       group(german ? "OBERKÖRPER-SCHICHTVERTRAG" : "UPPER-BODY LAYER CONTRACT", [fragment("garment.upper-body"), fragment("garment.layering")], " "),
       { ...group(undefined, [fragment("garment.outfit"), fragment("garment.material-behaviour")], " "), separatorBefore: "\n" },
     ]), separatorBefore: "\n\n\n" },
-    ...blocks.slice(5),
+    ...blocks.slice(outfitIndex + 1),
   ];
 }
 
@@ -98,9 +114,9 @@ function referenceSheetBlocks(german: boolean): readonly TextLayoutBlock[] {
   ];
 }
 
-function germanBlocks(authorizedBranding: boolean): readonly TextLayoutBlock[] {
+function germanBlocks(authorizedBranding: boolean, additionalPerson: boolean): readonly TextLayoutBlock[] {
   return [
-    heading("IMAGE GOAL\nErzeuge eine authentische, unbearbeitet wirkende Aufnahme einer realen erwachsenen Person. Das Ergebnis soll wie ein glaubwürdig entstandenes Lifestylefoto wirken, nicht wie ein digitales Rendering."),
+    imageGoalBlock(true, additionalPerson),
     group("SUBJECT IDENTITY", [fragment("character.subject"), fragment("character.identity-consistency")], " "),
     group("COMPOSITION AND CAMERA", [
       fragment("camera.capture"),
@@ -134,13 +150,13 @@ function germanBlocks(authorizedBranding: boolean): readonly TextLayoutBlock[] {
     group("ADAPTIVE MATERIALPHYSIK", [fragment("material.physics")]),
     group("ADAPTIVER REALISMUS", [fragment("realism.adaptive")]),
     group("ADAPTIVER PHYSIKKONTEXT", [fragment("material.adaptive-physical-context")]),
-    fragment("restrictions.additional-people", "\n\n"),
+    additionalPersonRestriction(additionalPerson, "\n\n"),
   ];
 }
 
-function englishBlocks(authorizedBranding: boolean): readonly TextLayoutBlock[] {
+function englishBlocks(authorizedBranding: boolean, additionalPerson: boolean): readonly TextLayoutBlock[] {
   return [
-    heading("IMAGE GOAL\nCreate an authentic, unretouched-looking photograph of a real adult person. The result should feel like a genuinely captured lifestyle photograph, not a digital rendering."),
+    imageGoalBlock(false, additionalPerson),
     group("SUBJECT IDENTITY", [fragment("character.subject"), fragment("character.identity-consistency")], " "),
     group("COMPOSITION AND CAMERA", [fragment("camera.capture")]),
     group("POSE AND EXPRESSION", [fragment("pose.action")]),
@@ -157,7 +173,7 @@ function englishBlocks(authorizedBranding: boolean): readonly TextLayoutBlock[] 
     group("FACIAL FEATURES", [fragment("character.facial-features")]),
     group("SKIN AND CAPTURE APPEARANCE", [fragment("realism.capture-appearance")]),
     group("RESTRICTIONS", [
-      fragment("restrictions.additional-people"),
+      additionalPersonRestriction(additionalPerson),
       fragment("restrictions.capture-quality-detailed"),
       brandingFragment(authorizedBranding),
     ], " "),
@@ -179,6 +195,20 @@ function brandingFragment(authorized: boolean): TextLayoutBlock {
   return authorized
     ? fragment("restrictions.branding-authorized", "\n")
     : fragment("restrictions.branding");
+}
+
+function imageGoalBlock(german: boolean, additionalPerson: boolean): TextLayoutBlock {
+  if (additionalPerson) return group("IMAGE GOAL", [fragment("image-goal.two-adults")]);
+  return heading(german
+    ? "IMAGE GOAL\nErzeuge eine authentische, unbearbeitet wirkende Aufnahme einer realen erwachsenen Person. Das Ergebnis soll wie ein glaubwürdig entstandenes Lifestylefoto wirken, nicht wie ein digitales Rendering."
+    : "IMAGE GOAL\nCreate an authentic, unretouched-looking photograph of a real adult person. The result should feel like a genuinely captured lifestyle photograph, not a digital rendering.");
+}
+
+function additionalPersonRestriction(authorized: boolean, separatorBefore?: string): TextLayoutBlock {
+  return fragment(
+    authorized ? "restrictions.additional-people-authorized" : "restrictions.additional-people",
+    separatorBefore,
+  );
 }
 
 function withExecutionContract(blocks: readonly TextLayoutBlock[]): readonly TextLayoutBlock[] {

@@ -707,4 +707,45 @@ describe("V600 profile matrix", () => {
 
     expect(new TextRenderer().render(document, layout).value).toBe(expected);
   });
+
+  it.each([
+    ["geminiNatural", "Gemini Natural", "json.v5611-special.en"],
+    ["geminiPro", "Gemini Pro", "json.v5611-special.en"],
+    ["geminiPro", "Gemini Pro", "additional-person.en"],
+  ])("renders Batch-7 multi-person semantics for %s / %s", async (profileId, profile, scenarioId) => {
+    const scenario = GOLDEN_SCENARIOS.find(({ id }) => id === scenarioId)!;
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile, step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const layout = profileId === "geminiNatural"
+      ? createGeminiNaturalLayout(document, promptLanguage)
+      : createGeminiProLayout(document, promptLanguage);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === profileId)!.output;
+
+    expect(new TextRenderer().render(document, layout).value).toBe(expected);
+  });
 });
