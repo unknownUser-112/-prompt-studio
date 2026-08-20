@@ -19,6 +19,8 @@ const COMPACT_REALISM_DE = "Glaubwürdige Anatomie, natürliche Proportionen, re
 const COMPACT_REALISM_EN = "Believable anatomy, exact selected body proportions, realistic garment drape, natural skin and hair texture, and one consistent light source. No CGI-like perfection, artificial skin smoothing, or excessive sharpening.";
 const COMPACT_FINAL_DE = "Keine sichtbaren Texte, Logos oder Wasserzeichen.";
 const COMPACT_FINAL_EN = "No visible text, logos, or watermark.";
+const PRESERVATION_CONTRACT_DE = "Bewahre Identität, sichtbare Anatomie, Pose, Outfit und Raumgeometrie. Füge keine nicht spezifizierten Personen, Kleidungsstücke, Accessoires, Texte, Logos oder Wasserzeichen hinzu.";
+const PRESERVATION_CONTRACT_EN = "Preserve identity, visible anatomy, pose, outfit, and spatial geometry. Do not add unspecified garments, accessories, text, logos, or watermarks.";
 const IMAGE_GENERATION_EXECUTION = [
   "Generate exactly one single image now.",
   "Return only the generated image; do not answer with explanatory text.",
@@ -73,6 +75,7 @@ export const modelBehaviourSection: PromptSectionProvider = {
       fragment("realism.photographic-character", "Die Aufnahme zeigt glaubwürdige Anatomie, realistische Raumgeometrie und konsistente Material- und Lichtphysik."),
       fragment("restrictions.capture-quality", "Keine künstliche Hautglättung, keine übertriebene Unschärfe, kein starkes Cinematic Color Grading und kein Wasserzeichen."),
       fragment("restrictions.capture-quality-detailed", "Keine künstliche Hautglättung, keine übertriebene Hintergrundunschärfe, kein starkes Cinematic Color Grading und kein Wasserzeichen."),
+      fragment("restrictions.preservation-contract", PRESERVATION_CONTRACT_DE),
       fragment("realism.compact-photographic", COMPACT_REALISM_DE),
       branding === undefined
         ? fragment("restrictions.branding", brandingRestriction)
@@ -88,6 +91,7 @@ export const modelBehaviourSection: PromptSectionProvider = {
       fragment("realism.photographic-character", "The photograph must show believable anatomy, realistic spatial geometry, and consistent material and lighting physics."),
       fragment("restrictions.capture-quality", CAPTURE_QUALITY_EN),
       fragment("restrictions.capture-quality-detailed", "No artificial skin smoothing, no excessive background blur, no heavy cinematic color grading, and no watermark."),
+      fragment("restrictions.preservation-contract", PRESERVATION_CONTRACT_EN),
       fragment("realism.compact-photographic", COMPACT_REALISM_EN),
       branding === undefined
         ? fragment("restrictions.branding", brandingRestriction)

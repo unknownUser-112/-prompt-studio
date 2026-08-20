@@ -52,11 +52,12 @@ describe("model-behaviour plugin", () => {
         "realism.photographic-character",
         "restrictions.capture-quality",
         "restrictions.capture-quality-detailed",
+        "restrictions.preservation-contract",
         "realism.compact-photographic",
         "restrictions.branding",
         "restrictions.compact-final",
       ]
-      : ["style.general", "realism.natural-irregularity", "realism.spatial-material-light", "realism.photographic-character", "restrictions.capture-quality", "restrictions.capture-quality-detailed", "realism.compact-photographic", "restrictions.branding", "restrictions.compact-final"]);
+      : ["style.general", "realism.natural-irregularity", "realism.spatial-material-light", "realism.photographic-character", "restrictions.capture-quality", "restrictions.capture-quality-detailed", "restrictions.preservation-contract", "realism.compact-photographic", "restrictions.branding", "restrictions.compact-final"]);
     expect(first.fragments?.every(({ traceIds }) => traceIds.length === 1)).toBe(true);
     expect(first.fragments?.every(({ text }) => text.length > 0)).toBe(true);
     expect(first.fragments?.every(({ id }) => !id.includes("gemini"))).toBe(true);
@@ -277,6 +278,28 @@ describe("model-behaviour plugin", () => {
 
     expect(first?.text).toBe(expected);
     expect(first?.traceIds).toEqual(["model.behaviour:model-behaviour.selection"]);
+    expect(second).toEqual(first);
+  });
+
+  it.each([
+    [
+      "Deutsch",
+      "Bewahre Identität, sichtbare Anatomie, Pose, Outfit und Raumgeometrie. Füge keine nicht spezifizierten Personen, Kleidungsstücke, Accessoires, Texte, Logos oder Wasserzeichen hinzu.",
+    ],
+    [
+      "English",
+      "Preserve identity, visible anatomy, pose, outfit, and spatial geometry. Do not add unspecified garments, accessories, text, logos, or watermarks.",
+    ],
+  ])("materializes the resolved preservation contract deterministically in %s", async (promptLanguage, expected) => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage }, [modelBehaviourProvider]);
+    const first = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "restrictions.preservation-contract");
+    const second = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "restrictions.preservation-contract");
+
+    expect(first).toEqual({
+      id: "restrictions.preservation-contract",
+      text: expected,
+      traceIds: ["model.behaviour:model-behaviour.selection"],
+    });
     expect(second).toEqual(first);
   });
 

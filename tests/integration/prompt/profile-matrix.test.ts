@@ -28,6 +28,7 @@ import { createUniversalLayout } from "../../../src/profiles/universal";
 import { createGeminiNaturalLayout } from "../../../src/profiles/gemini-natural";
 import { createGeminiProLayout } from "../../../src/profiles/gemini-pro";
 import { createNanoBananaProLayout } from "../../../src/profiles/nano-banana-pro";
+import { createGptImage2Layout } from "../../../src/profiles/gpt-image-2";
 import { TextRenderer } from "../../../src/renderers/text-renderer";
 import { createFixedRuntime } from "../../helpers/fixed-runtime";
 import { GOLDEN_SCENARIOS } from "../../golden/scenarios";
@@ -782,6 +783,45 @@ describe("V600 profile matrix", () => {
     expect(new TextRenderer().render(document, createUniversalLayout(document, promptLanguage)).value).toBe(expected);
   });
 
+  it.each([
+    ...GOLDEN_SCENARIOS.map((scenario) => ({ ...scenario, profileId: "geminiNatural", profile: "Gemini Natural" })),
+    ...GOLDEN_SCENARIOS.map((scenario) => ({ ...scenario, profileId: "geminiPro", profile: "Gemini Pro" })),
+  ])("renders every completed Gemini scenario byte-identically: $profileId / $id", async (scenario) => {
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile: scenario.profile, step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const layout = scenario.profileId === "geminiNatural"
+      ? createGeminiNaturalLayout(document, promptLanguage)
+      : createGeminiProLayout(document, promptLanguage);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenario.id && entry.profileId === scenario.profileId)!.output;
+
+    expect(new TextRenderer().render(document, layout).value).toBe(expected);
+  });
+
   it.each(GOLDEN_SCENARIOS)("renders every Nano Banana Pro scenario byte-identically: $id", async (scenario) => {
     const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
     const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
@@ -813,5 +853,74 @@ describe("V600 profile matrix", () => {
     const expected = matrix.entries.find((entry) => entry.scenarioId === scenario.id && entry.profileId === "nanoBananaPro")!.output;
 
     expect(new TextRenderer().render(document, createNanoBananaProLayout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it.each([
+    GOLDEN_SCENARIOS.find(({ id }) => id === "baseline.de")!,
+    GOLDEN_SCENARIOS.find(({ id }) => id === "baseline.en")!,
+  ])("renders the GPT Image 2 baseline byte-identically: $id", async (scenario) => {
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile: "GPT Image 2", step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenario.id && entry.profileId === "gptImage2")!.output;
+
+    expect(new TextRenderer().render(document, createGptImage2Layout(document, promptLanguage)).value).toBe(expected);
+  });
+
+  it.each(GOLDEN_SCENARIOS)("renders every GPT Image 2 scenario byte-identically: $id", async (scenario) => {
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile: "GPT Image 2", step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenario.id && entry.profileId === "gptImage2")!.output;
+
+    expect(new TextRenderer().render(document, createGptImage2Layout(document, promptLanguage)).value).toBe(expected);
   });
 });
