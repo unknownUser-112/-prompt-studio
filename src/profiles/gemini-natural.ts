@@ -14,7 +14,8 @@ export function createGeminiNaturalLayout(
   const selfie = document.sections.some((section) => section.fragments.some(({ id }) => id === "selfie.binding"));
   const additionalPerson = document.sections.some((section) => section.fragments.some(({ id }) => id === "additional-person.person"));
   const openGarment = document.sections.some((section) => section.fragments.some(({ id }) => id === "garment.state"));
-  const baselineBlocks = german ? germanBlocks() : englishBlocks();
+  const authorizedBranding = document.sections.some((section) => section.fragments.some(({ id }) => id === "restrictions.branding-authorized"));
+  const baselineBlocks = german ? germanBlocks(authorizedBranding) : englishBlocks(authorizedBranding);
   const modeBlocks = referenceSheet
     ? referenceSheetBlocks(german)
     : singleReference
@@ -93,7 +94,7 @@ function referenceSheetBlocks(german: boolean): readonly TextLayoutBlock[] {
   ];
 }
 
-function germanBlocks(): readonly TextLayoutBlock[] {
+function germanBlocks(authorizedBranding: boolean): readonly TextLayoutBlock[] {
   return [
     staticBlock("BILDZIEL\nErzeuge eine natürliche, glaubwürdig fotografierte Lifestyleaufnahme einer realen erwachsenen Person."),
     group("PERSON", [fragment("character.subject")]),
@@ -115,7 +116,7 @@ function germanBlocks(): readonly TextLayoutBlock[] {
     ], " "),
     { ...group(undefined, [
       fragment("restrictions.capture-quality"),
-      fragment("restrictions.branding"),
+      brandingFragment(authorizedBranding),
     ], " "), prefix: " " },
     group("GESICHTSMERKMALE", [fragment("character.facial-features")]),
     group("ADAPTIVE MATERIALPHYSIK", [fragment("material.physics")]),
@@ -125,7 +126,7 @@ function germanBlocks(): readonly TextLayoutBlock[] {
   ];
 }
 
-function englishBlocks(): readonly TextLayoutBlock[] {
+function englishBlocks(authorizedBranding: boolean): readonly TextLayoutBlock[] {
   return [
     staticBlock("IMAGE GOAL\nCreate a natural, credibly photographed lifestyle image of a real adult person."),
     group("SUBJECT", [fragment("character.subject")]),
@@ -142,7 +143,7 @@ function englishBlocks(): readonly TextLayoutBlock[] {
     group("NATURAL DETAIL", [fragment("realism.skin")]),
     { ...group(undefined, [
       fragment("restrictions.capture-quality"),
-      fragment("restrictions.branding"),
+      brandingFragment(authorizedBranding),
     ], " "), prefix: " " },
     group("FACIAL FEATURES", [fragment("character.facial-features")]),
     group("SKIN AND CAPTURE APPEARANCE", [fragment("realism.capture-appearance")]),
@@ -159,6 +160,12 @@ function staticBlock(text: string): TextLayoutBlock {
 
 function fragment(fragmentId: string, separatorBefore?: string): TextLayoutBlock {
   return { kind: "fragment", fragmentId, ...(separatorBefore === undefined ? {} : { separatorBefore }) };
+}
+
+function brandingFragment(authorized: boolean): TextLayoutBlock {
+  return authorized
+    ? fragment("restrictions.branding-authorized", "\n")
+    : fragment("restrictions.branding");
 }
 
 function group(

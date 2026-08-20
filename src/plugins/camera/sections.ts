@@ -3,6 +3,8 @@ import { createResolvedFragmentDraft, createResolvedSectionDraft } from "../../c
 
 const CAPTURE_DE = "Ganzkörper, Kopf bis Fuß, beide Füße sichtbar. Eine einzige durchgehende Ganzkörperaufnahme; keine zusätzlichen Nahaufnahmen, Ausschnitte oder Wiederholungen derselben Person. Priorisiere vollständige Körperhaltung, beide Füße, Outfit und räumlichen Kontext. Haut- und Haardetails bleiben natürlich sichtbar, aber nicht als Nahaufnahme inszeniert. Aufgenommen mit einer modernes Smartphone-Kamerasystem und einem hauptkamera des Smartphones mit natürlicher Perspektive. natürlicher, authentischer fotografischer Charakter. natürliche Farbwiedergabe und ausgewogener Kontrast.";
 const CAPTURE_EN = "full-body frame from head to toe with both feet visible. Use one continuous full-body frame only; do not add a portrait crop, close-up, alternate framing, or repeated view of the subject. Prioritize the complete pose, both feet, outfit, and environmental context. Skin and hair texture should remain naturally plausible at full-body viewing distance, not enlarged as a close-up. Captured with a modern smartphone camera system using a smartphone main camera with a natural perspective. The camera is at eye level. The shooting distance feels natural. Depth of field is subtle, and the shot feels calm and handheld. The framing should resemble a naturally captured smartphone photo rather than a carefully staged fashion campaign.";
+const WARM_CAPTURE_DE = "Ganzkörper, Kopf bis Fuß, beide Füße sichtbar. Eine einzige durchgehende Ganzkörperaufnahme; keine zusätzlichen Nahaufnahmen, Ausschnitte oder Wiederholungen derselben Person. Priorisiere vollständige Körperhaltung, beide Füße, Outfit und räumlichen Kontext. Haut- und Haardetails bleiben natürlich sichtbar, aber nicht als Nahaufnahme inszeniert. Aufgenommen mit einer modernes Smartphone-Kamerasystem und einem hauptkamera des Smartphones mit natürlicher Perspektive. natürlicher, authentischer fotografischer Charakter. warme Farbbalance mit sanften goldenen Tönen.";
+const WARM_CAPTURE_EN = "full-body frame from head to toe with both feet visible. Use one continuous full-body frame only; do not add a portrait crop, close-up, alternate framing, or repeated view of the subject. Prioritize the complete pose, both feet, outfit, and environmental context. Skin and hair texture should remain naturally plausible at full-body viewing distance, not enlarged as a close-up. Captured with a modern smartphone camera system using a smartphone main camera with a natural perspective. The camera is at eye level. The shooting distance feels natural. Depth of field is subtle, and the shot feels calm and handheld. The framing should resemble a naturally captured smartphone photo rather than a carefully staged fashion campaign. Warm color balance with soft golden tones.";
 const UPPER_BODY_DE = "Oberkörperaufnahme mit natürlichem Kameraabstand. Verwende nur einen einzigen durchgehenden Porträtrahmen, ohne Ganzkörperalternative, Vergleichsansicht oder wiederholte Person. Priorisiere Gesicht, Augen, Haut und Haardetails; füge keine Ganzkörperanforderungen hinzu. Aufgenommen mit einer modernes Smartphone-Kamerasystem und einem hauptkamera des Smartphones mit natürlicher Perspektive. natürlicher, authentischer fotografischer Charakter. natürliche Farbwiedergabe und ausgewogener Kontrast.";
 const UPPER_BODY_EN = "upper-body frame with a natural camera distance. Use one continuous portrait frame only, without a full-body alternative, comparison view, or repeated subject. Prioritize the face, eyes, skin, and hair detail; do not add full-body framing requirements. Captured with a modern smartphone camera system using a smartphone main camera with a natural perspective. The camera is at eye level. The shooting distance feels natural. Depth of field is subtle, and the shot feels calm and handheld. The framing should resemble a naturally captured smartphone photo rather than a carefully staged fashion campaign.";
 const OUTPUT_CONTRACT_DE = "Genau ein durchgehendes Foto. Die Hauptperson erscheint genau einmal und vollständig von Kopf bis Fuß; beide Füße sind sichtbar und kein Körperteil wird angeschnitten.\nKeine Collage, kein geteiltes Bild, kein Vergleich, keine alternative Aufnahme und keine Wiederholung der Hauptperson.";
@@ -18,7 +20,8 @@ export const cameraSection: PromptSectionProvider = {
     const language = state.facts.values.promptLanguage;
     const german = language === "Deutsch";
     const framing = resolvedFraming(state.values);
-    const capture = captureForFraming(framing, german);
+    const photoLook = resolvedCameraString(state.values, "photoLook");
+    const capture = captureForFraming(framing, photoLook, german);
     const outputContract = outputContractForFraming(framing, german);
     const capturePaths = ["camera.device", "camera.framing", "camera.lens", "camera.perspective", "camera.photoLook", "camera.style"] as const;
     const hasCompleteCapture = capturePaths.every((path) => state.trace.entries.some((entry) => entry.path === path));
@@ -34,16 +37,23 @@ export const cameraSection: PromptSectionProvider = {
 };
 
 function resolvedFraming(values: unknown): string {
+  return resolvedCameraString(values, "framing");
+}
+
+function resolvedCameraString(values: unknown, field: string): string {
   if (values === null || Array.isArray(values) || typeof values !== "object") throw new Error("Missing resolved camera.framing");
   const camera = (values as Readonly<Record<string, unknown>>).camera;
   if (camera === null || Array.isArray(camera) || typeof camera !== "object") throw new Error("Missing resolved camera.framing");
-  const framing = (camera as Readonly<Record<string, unknown>>).framing;
-  if (typeof framing !== "string" || framing.length === 0) throw new Error("Missing resolved camera.framing");
-  return framing;
+  const value = (camera as Readonly<Record<string, unknown>>)[field];
+  if (typeof value !== "string" || value.length === 0) throw new Error(`Missing resolved camera.${field}`);
+  return value;
 }
 
-function captureForFraming(framing: string, german: boolean): string {
-  if (framing === "framing.whole_person") return german ? CAPTURE_DE : CAPTURE_EN;
+function captureForFraming(framing: string, photoLook: string, german: boolean): string {
+  if (framing === "framing.whole_person") {
+    if (photoLook === "photoLook.warm") return german ? WARM_CAPTURE_DE : WARM_CAPTURE_EN;
+    return german ? CAPTURE_DE : CAPTURE_EN;
+  }
   if (framing === "framing.upper_body" || framing === "upper-body frame with a natural camera distance") {
     return german ? UPPER_BODY_DE : UPPER_BODY_EN;
   }

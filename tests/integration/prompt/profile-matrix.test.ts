@@ -9,6 +9,7 @@ import { additionalPersonProvider } from "../../../src/plugins/additional-person
 import { additionalPersonSection } from "../../../src/plugins/additional-person/sections";
 import { adaptiveRealismProvider } from "../../../src/plugins/adaptive-realism/rules";
 import { adaptiveRealismSection } from "../../../src/plugins/adaptive-realism/sections";
+import { brandProvider } from "../../../src/plugins/brand/rules";
 import { cameraProvider } from "../../../src/plugins/camera/rules";
 import { cameraSection } from "../../../src/plugins/camera/sections";
 import { characterSheetProvider } from "../../../src/plugins/character-sheet/rules";
@@ -473,6 +474,58 @@ describe("V600 profile matrix", () => {
       [
         additionalPersonProvider,
         adaptiveRealismProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const layout = profileId === "universal"
+      ? createUniversalLayout(document)
+      : profileId === "geminiNatural"
+        ? createGeminiNaturalLayout(document, promptLanguage)
+        : createGeminiProLayout(document, promptLanguage);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === profileId)!.output;
+
+    expect(new TextRenderer().render(document, layout).value).toBe(expected);
+  });
+
+  it.each([
+    ["universal", "Universal", "camera.full-body-85mm.de"],
+    ["geminiNatural", "Gemini Natural", "camera.full-body-85mm.de"],
+    ["geminiPro", "Gemini Pro", "camera.full-body-85mm.de"],
+    ["universal", "Universal", "branding.named.de"],
+    ["universal", "Universal", "branding.named.en"],
+    ["geminiNatural", "Gemini Natural", "branding.named.de"],
+    ["geminiNatural", "Gemini Natural", "branding.named.en"],
+    ["geminiPro", "Gemini Pro", "branding.named.de"],
+    ["geminiPro", "Gemini Pro", "branding.named.en"],
+    ["universal", "Universal", "json.baseline.de"],
+    ["geminiNatural", "Gemini Natural", "json.baseline.de"],
+    ["geminiPro", "Gemini Pro", "json.baseline.de"],
+  ])("renders Batch-3 focal parity for %s / %s", async (profileId, profile, scenarioId) => {
+    const scenario = GOLDEN_SCENARIOS.find(({ id }) => id === scenarioId)!;
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile, step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
         cameraProvider,
         characterSheetProvider,
         garmentProvider,

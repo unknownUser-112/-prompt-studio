@@ -237,7 +237,7 @@ describe("PromptAstBuilder", () => {
   it("accepts existing plugin section providers without giving them a new value source", () => {
     const existingState: ResolvedState = {
       ...state,
-      values: { camera: { framing: "portrait" }, selfie: { enabled: true } },
+      values: { camera: { framing: "portrait", photoLook: "photoLook.natural" }, selfie: { enabled: true } },
       trace: {
         entries: [
           traceEntry,

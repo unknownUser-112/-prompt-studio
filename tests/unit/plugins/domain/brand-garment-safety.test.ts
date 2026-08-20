@@ -70,6 +70,75 @@ describe("brand, garment and safety plugins", () => {
     expect(second).toEqual(first);
   });
 
+  it("projects an explicit upper-garment brand fieldwise with exact sources", async () => {
+    const state = await resolve({
+      tshirtBrand: "Tommy Hilfiger",
+      brandVisibility: "Dezent sichtbar",
+      brandPlacement: "Brustbereich / Vorderseite",
+    }, [brandProvider]);
+
+    expect(state.values).toEqual({
+      brand: {
+        allowedGarment: "upper",
+        name: "Tommy Hilfiger",
+        placement: "Brustbereich / Vorderseite",
+        visibility: "Dezent sichtbar",
+      },
+    });
+    expect(state.trace.entries.map(({ path, sourceField }) => ({ path, sourceField }))).toEqual([
+      { path: "brand.allowedGarment", sourceField: "tshirtBrand" },
+      { path: "brand.name", sourceField: "tshirtBrand" },
+      { path: "brand.placement", sourceField: "brandPlacement" },
+      { path: "brand.visibility", sourceField: "brandVisibility" },
+    ]);
+  });
+
+  it("projects branded footwear model and the V500-authoritative material binding", async () => {
+    const state = await resolve({
+      shoesBrand: "Nike",
+      shoesModel: "Air Force 1",
+      brandVisibility: "Deutlich sichtbar",
+      brandPlacement: "Schuhseite / Zunge",
+    }, [brandProvider]);
+
+    expect(state.values).toEqual({
+      brand: {
+        allowedGarment: "footwear",
+        model: "Air Force 1",
+        name: "Nike",
+        placement: "Schuhseite / Zunge",
+        visibility: "Deutlich sichtbar",
+      },
+      garment: { footwear: { material: "material.smooth_leather" } },
+    });
+    expect(state.trace.entries.find(({ path }) => path === "garment.footwear.material")).toMatchObject({
+      ruleId: "brand.footwear-material-binding",
+      sourceFields: ["shoesBrand", "shoesModel"],
+    });
+  });
+
+  it.each([
+    ["Deutsch", "von Tommy Hilfiger", "tshirtBrand"],
+    ["English", "by Nike model Air Force 1", "shoesBrand"],
+  ])("formulates resolved branding in the garment fragment for %s", async (promptLanguage, expected, sourceField) => {
+    const branding = promptLanguage === "Deutsch"
+      ? { tshirtBrand: "Tommy Hilfiger", brandVisibility: "Dezent sichtbar", brandPlacement: "Brustbereich / Vorderseite" }
+      : { shoesBrand: "Nike", shoesModel: "Air Force 1", brandVisibility: "Deutlich sichtbar", brandPlacement: "Schuhseite / Zunge" };
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      ...branding,
+      promptLanguage,
+    }, [brandProvider, garmentProvider]);
+    const fragments = garmentSection.provide(state)[0]?.fragments ?? [];
+    const outfit = fragments.find(({ id }) => id === "garment.outfit");
+
+    expect(outfit?.text).toContain(expected);
+    expect(outfit?.traceIds.some((id) => state.trace.entries.find((entry) => entry.id === id)?.sourceField === sourceField)).toBe(true);
+    if (promptLanguage === "English") {
+      expect(fragments.find(({ id }) => id === "garment.material-behaviour")?.text).toContain("smooth leather");
+    }
+  });
+
   it("resolves the explicit open-shirt facts over the canonical baseline without competing assignments", async () => {
     const input = {
       ...createCanonicalProjectStateV5Values(),

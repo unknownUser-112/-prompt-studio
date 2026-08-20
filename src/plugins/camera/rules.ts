@@ -24,12 +24,45 @@ function tracedCameraFact(id: string, field: string): ConstraintRule {
     evaluate: ({ facts }) => {
       const selected = field === "framing"
         ? flatFramingFact(facts.values)
+        : field === "lens"
+          ? lensFact(facts.values)
+          : field === "photoLook"
+            ? photoLookFact(facts.values)
         : tracedValue(nestedString(facts.values, "camera", field), `camera.${field}`);
       return selected === undefined
         ? []
         : [{ path: `camera.${field}`, sourceField: selected.sourceField, value: selected.value }];
     },
   };
+}
+
+function lensFact(values: unknown): { readonly sourceField: string; readonly value: string } | undefined {
+  const v5Id = topLevelString(values, "lensV5Id");
+  if (v5Id !== undefined) return tracedValue(v5Id, "lensV5Id");
+  const explicit = topLevelString(values, "lens");
+  if (explicit !== undefined) {
+    const canonical: Readonly<Record<string, string>> = {
+      "26-mm-Smartphone-Hauptkameraäquivalent": "lens.smart_main",
+      "85-mm-Porträtobjektiv": "lens.portrait_85mm",
+    };
+    const value = canonical[explicit] ?? (explicit.startsWith("lens.") ? explicit : undefined);
+    if (value === undefined) throw new Error(`Unsupported explicit camera lens: ${explicit}`);
+    return tracedValue(value, "lens");
+  }
+  return tracedValue(nestedString(values, "camera", "lens"), "camera.lens");
+}
+
+function photoLookFact(values: unknown): { readonly sourceField: string; readonly value: string } | undefined {
+  const explicit = topLevelString(values, "photoLook");
+  if (explicit !== undefined) {
+    const canonical: Readonly<Record<string, string>> = {
+      "Klar, aber natürlich": "photoLook.warm",
+    };
+    const value = canonical[explicit] ?? (explicit.startsWith("photoLook.") ? explicit : undefined);
+    if (value === undefined) throw new Error(`Unsupported explicit camera photo look: ${explicit}`);
+    return tracedValue(value, "photoLook");
+  }
+  return tracedValue(nestedString(values, "camera", "photoLook"), "camera.photoLook");
 }
 
 function flatFramingFact(values: unknown): { readonly sourceField: string; readonly value: string } | undefined {

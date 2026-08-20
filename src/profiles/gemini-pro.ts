@@ -9,14 +9,15 @@ export function createGeminiProLayout(
   promptLanguage: PromptLanguage,
 ): ProfileLayout {
   const german = promptLanguage === "Deutsch";
+  const authorizedBranding = document.sections.some((section) => section.fragments.some(({ id }) => id === "restrictions.branding-authorized"));
   return {
     id: PROFILE_IDS.geminiPro,
     sections: document.sections.map((section, order) => ({ sectionId: section.id, order })),
-    textBlocks: german ? germanBlocks() : englishBlocks(),
+    textBlocks: german ? germanBlocks(authorizedBranding) : englishBlocks(authorizedBranding),
   };
 }
 
-function germanBlocks(): readonly TextLayoutBlock[] {
+function germanBlocks(authorizedBranding: boolean): readonly TextLayoutBlock[] {
   return [
     heading("IMAGE GOAL\nErzeuge eine authentische, unbearbeitet wirkende Aufnahme einer realen erwachsenen Person. Das Ergebnis soll wie ein glaubwürdig entstandenes Lifestylefoto wirken, nicht wie ein digitales Rendering."),
     group("SUBJECT IDENTITY", [fragment("character.subject"), fragment("character.identity-consistency")], " "),
@@ -48,7 +49,7 @@ function germanBlocks(): readonly TextLayoutBlock[] {
     ], " "),
     group("PHOTOGRAPHIC CHARACTER", [fragment("realism.photographic-character")]),
     group("GESICHTSMERKMALE", [fragment("character.facial-features")]),
-    group("RESTRICTIONS", [fragment("restrictions.capture-quality-detailed"), fragment("restrictions.branding")], " "),
+    group("RESTRICTIONS", [fragment("restrictions.capture-quality-detailed"), brandingFragment(authorizedBranding)], " "),
     group("ADAPTIVE MATERIALPHYSIK", [fragment("material.physics")]),
     group("ADAPTIVER REALISMUS", [fragment("realism.adaptive")]),
     group("ADAPTIVER PHYSIKKONTEXT", [fragment("material.adaptive-physical-context")]),
@@ -56,7 +57,7 @@ function germanBlocks(): readonly TextLayoutBlock[] {
   ];
 }
 
-function englishBlocks(): readonly TextLayoutBlock[] {
+function englishBlocks(authorizedBranding: boolean): readonly TextLayoutBlock[] {
   return [
     heading("IMAGE GOAL\nCreate an authentic, unretouched-looking photograph of a real adult person. The result should feel like a genuinely captured lifestyle photograph, not a digital rendering."),
     group("SUBJECT IDENTITY", [fragment("character.subject"), fragment("character.identity-consistency")], " "),
@@ -77,7 +78,7 @@ function englishBlocks(): readonly TextLayoutBlock[] {
     group("RESTRICTIONS", [
       fragment("restrictions.additional-people"),
       fragment("restrictions.capture-quality-detailed"),
-      fragment("restrictions.branding"),
+      brandingFragment(authorizedBranding),
     ], " "),
     group("ADAPTIVE MATERIAL PHYSICS", [fragment("material.physics")]),
     group("ADAPTIVE REALISM", [fragment("realism.adaptive")]),
@@ -91,6 +92,12 @@ function heading(text: string): TextLayoutBlock {
 
 function fragment(fragmentId: string, separatorBefore?: string): TextLayoutBlock {
   return { kind: "fragment", fragmentId, ...(separatorBefore === undefined ? {} : { separatorBefore }) };
+}
+
+function brandingFragment(authorized: boolean): TextLayoutBlock {
+  return authorized
+    ? fragment("restrictions.branding-authorized", "\n")
+    : fragment("restrictions.branding");
 }
 
 function group(

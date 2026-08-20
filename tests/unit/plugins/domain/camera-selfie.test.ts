@@ -56,6 +56,38 @@ describe("camera and selfie plugins", () => {
     expect(await resolve(input, true)).toEqual(first);
   });
 
+  it("projects the explicit 85-mm lens over the nested smartphone baseline", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      lens: "85-mm-Porträtobjektiv",
+    });
+
+    expect(state.values).toHaveProperty("camera.lens", "lens.portrait_85mm");
+    expect(state.trace.entries.filter(({ path }) => path === "camera.lens")).toEqual([
+      expect.objectContaining({
+        id: "camera.lens:camera.lens",
+        ruleId: "camera.lens",
+        sourceField: "lens",
+      }),
+    ]);
+  });
+
+  it("projects the explicit warm photo look over the nested natural baseline", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      photoLook: "Klar, aber natürlich",
+    });
+
+    expect(state.values).toHaveProperty("camera.photoLook", "photoLook.warm");
+    expect(state.trace.entries.filter(({ path }) => path === "camera.photoLook")).toEqual([
+      expect.objectContaining({
+        id: "camera.photoLook:camera.photo-look",
+        ruleId: "camera.photo-look",
+        sourceField: "photoLook",
+      }),
+    ]);
+  });
+
   it("binds a selfie to a smartphone camera and arm-length framing", async () => {
     const input = { selfieMode: { enabled: true, type: "selfie.front", phoneVisibility: "selfiePhone.auto" } };
     const state = await resolve(input);
@@ -232,6 +264,19 @@ describe("camera and selfie plugins", () => {
       "camera.framing:camera.framing",
     ]);
     expect(second).toEqual(first);
+  });
+
+  it("formulates the resolved warm photo look in the camera capture", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "Deutsch",
+      photoLook: "Klar, aber natürlich",
+    });
+    const fragment = cameraSection.provide(state)[0]?.fragments?.find(({ id }) => id === "camera.capture");
+
+    expect(fragment?.text).toContain("warme Farbbalance mit sanften goldenen Tönen.");
+    expect(fragment?.text).not.toContain("natürliche Farbwiedergabe und ausgewogener Kontrast.");
+    expect(fragment?.traceIds).toContain("camera.photoLook:camera.photo-look");
   });
 
   it("does not invent whole-person capture content when resolved framing is absent", async () => {

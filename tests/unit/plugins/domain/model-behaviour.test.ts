@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { modelBehaviourProvider } from "../../../../src/plugins/model-behaviour/rules";
 import { modelBehaviourSection } from "../../../../src/plugins/model-behaviour/sections";
+import { cameraProvider } from "../../../../src/plugins/camera/rules";
+import { brandProvider } from "../../../../src/plugins/brand/rules";
+import type { ConstraintProvider } from "../../../../src/domain/contracts/constraints/provider";
 import { ConstraintEngine } from "../../../../src/domain/engines/constraint-engine";
 import { createResolvedStateBuilder } from "../../../../src/domain/engines/resolved-state-builder";
+import { createCanonicalProjectStateV5Values } from "../../../../src/domain/entities/project-factory";
 import { createFixedRuntime } from "../../../helpers/fixed-runtime";
 
-const resolve = (input: unknown) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(input, [modelBehaviourProvider]);
+const resolve = (input: unknown, providers: readonly ConstraintProvider[] = [modelBehaviourProvider]) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(input, providers);
 
 describe("model-behaviour plugin", () => {
   it("records the selected model behaviour without inventing a default", async () => {
@@ -114,5 +118,94 @@ describe("model-behaviour plugin", () => {
       text: existingText,
       traceIds: ["model.behaviour:model-behaviour.selection"],
     });
+  });
+
+  it("adds 85-mm compression to body mechanics from the resolved camera lens", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "Deutsch",
+      lens: "85-mm-Porträtobjektiv",
+    }, [cameraProvider, modelBehaviourProvider]);
+    const fragment = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "realism.body-mechanics");
+
+    expect(fragment?.text).toContain("leichte Telekompression mit natürlicher Gesichtsperspektive und ruhigem Hintergrund.");
+    expect(fragment?.traceIds).toEqual([
+      "camera.lens:camera.lens",
+      "model.behaviour:model-behaviour.selection",
+    ]);
+  });
+
+  it("keeps baseline body mechanics free of telecompression for the smartphone lens", async () => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch" }, [cameraProvider, modelBehaviourProvider]);
+    const fragment = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "realism.body-mechanics");
+
+    expect(fragment?.text).not.toContain("Telekompression");
+    expect(fragment?.traceIds).toEqual(["model.behaviour:model-behaviour.selection"]);
+  });
+
+  it("uses the resolved warm photo look for capture character", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "Deutsch",
+      photoLook: "Klar, aber natürlich",
+    }, [cameraProvider, modelBehaviourProvider]);
+    const fragment = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "style.capture-character");
+
+    expect(fragment?.text).toBe("ausgewogene, zurückhaltende Smartphone-HDR-Verarbeitung. klare, aber nicht überschärfte rechnerische Detailzeichnung. sehr dezentes Sensorrauschen. leicht weichere Details an den Bildrändern.");
+    expect(fragment?.traceIds).toEqual([
+      "camera.photoLook:camera.photo-look",
+      "model.behaviour:model-behaviour.selection",
+    ]);
+  });
+
+  it("keeps natural photo-look capture character byte-identical", async () => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage: "Deutsch" }, [cameraProvider, modelBehaviourProvider]);
+    const fragment = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "style.capture-character");
+
+    expect(fragment?.text).toBe("zurückhaltendes Smartphone-HDR. leichte rechnerische Schärfung. sehr dezentes Sensorrauschen. leicht weichere Details an den Bildrändern.");
+    expect(fragment?.traceIds).toEqual(["model.behaviour:model-behaviour.selection"]);
+  });
+
+  it.each([
+    [
+      "Deutsch",
+      { tshirtBrand: "Tommy Hilfiger", brandVisibility: "Dezent sichtbar", brandPlacement: "Brustbereich / Vorderseite" },
+      "Das authentische Branding einschließlich des Markenlogos ist bewusst sichtbar und ausschließlich wie folgt erlaubt: Tommy Hilfiger: ausschließlich auf Oberteil.\nDas Logo soll klein und dezent bleiben. Bevorzugte Platzierung: Brustbereich / Vorderseite.\nDas Logo muss der natürlichen Konstruktion des Kleidungsstücks folgen und darf nur dort erscheinen, wo ein reales Produkt Herstellerbranding tragen würde. Markenschrift ist nur als Bestandteil dieses ausdrücklich gewünschten Brandings erlaubt. Kein fremder Text, keine zusätzlichen oder duplizierten Logos und kein Branding auf anderen Kleidungsstücken, Accessoires, Gegenständen oder in der Umgebung.",
+      ["brand.allowedGarment:brand.garment-binding", "brand.name:brand.name", "brand.placement:brand.placement", "brand.visibility:brand.visibility"],
+    ],
+    [
+      "English",
+      { shoesBrand: "Nike", shoesModel: "Air Force 1", brandVisibility: "Deutlich sichtbar", brandPlacement: "Schuhseite / Zunge" },
+      "Authentic branding, including the brand logo, is intentionally visible and permitted only as follows: Nike: classic white sneakers only.\nMake the logo clearly recognizable while naturally integrated into the material. Preferred placement: shoe side or tongue.\nThe logo must follow the natural construction of the garment and may appear only where a real product would contain manufacturer branding. Brand lettering is permitted only as part of this explicitly requested branding. No unrelated text, additional or duplicated logos, or branding on other garments, accessories, objects, or the environment.",
+      ["brand.allowedGarment:brand.garment-binding", "brand.model:brand.model", "brand.name:brand.name", "brand.placement:brand.placement", "brand.visibility:brand.visibility"],
+    ],
+  ])("formulates resolved authorized-branding restrictions with exact cross-provider traces in %s", async (promptLanguage, branding, expectedText, expectedTraceIds) => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      ...branding,
+      promptLanguage,
+    }, [brandProvider, modelBehaviourProvider]);
+    const fragments = modelBehaviourSection.provide(state)[0]?.fragments ?? [];
+    const fragment = fragments.find(({ id }) => id === "restrictions.branding-authorized");
+
+    expect(fragment?.text).toBe(expectedText);
+    expect(fragment?.traceIds).toEqual(expectedTraceIds);
+    expect(fragments.some(({ id }) => id === "restrictions.branding")).toBe(false);
+  });
+
+  it.each(["Deutsch", "English"])("materializes only the default branding restriction without resolved authorized branding in %s", async (promptLanguage) => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage,
+    }, [brandProvider, modelBehaviourProvider]);
+    const fragments = modelBehaviourSection.provide(state)[0]?.fragments ?? [];
+    const brandingFragments = fragments.filter(({ id }) => id.startsWith("restrictions.branding"));
+
+    expect(brandingFragments).toHaveLength(1);
+    expect(brandingFragments[0]?.id).toBe("restrictions.branding");
+    expect(brandingFragments[0]?.text).toBe(promptLanguage === "Deutsch"
+      ? "Kein sichtbarer Text, keine Logos und kein sonstiges Branding."
+      : "No visible text, logos, or other branding.");
+    expect(brandingFragments[0]?.traceIds).toEqual(["model.behaviour:model-behaviour.selection"]);
   });
 });
