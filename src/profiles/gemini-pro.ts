@@ -10,10 +10,12 @@ export function createGeminiProLayout(
 ): ProfileLayout {
   const german = promptLanguage === "Deutsch";
   const authorizedBranding = document.sections.some((section) => section.fragments.some(({ id }) => id === "restrictions.branding-authorized"));
+  const execution = document.sections.some((section) => section.fragments.some(({ id }) => id === "execution.image-generation"));
+  const blocks = german ? germanBlocks(authorizedBranding) : englishBlocks(authorizedBranding);
   return {
     id: PROFILE_IDS.geminiPro,
     sections: document.sections.map((section, order) => ({ sectionId: section.id, order })),
-    textBlocks: german ? germanBlocks(authorizedBranding) : englishBlocks(authorizedBranding),
+    textBlocks: execution ? withExecutionContract(blocks) : blocks,
   };
 }
 
@@ -98,6 +100,14 @@ function brandingFragment(authorized: boolean): TextLayoutBlock {
   return authorized
     ? fragment("restrictions.branding-authorized", "\n")
     : fragment("restrictions.branding");
+}
+
+function withExecutionContract(blocks: readonly TextLayoutBlock[]): readonly TextLayoutBlock[] {
+  return [
+    group("IMAGE GENERATION EXECUTION", [fragment("execution.image-generation")]),
+    { ...heading("===== IMAGE PROMPT ====="), separatorBefore: "\n\n" },
+    ...(blocks.length === 0 ? [] : [{ ...blocks[0]!, separatorBefore: "\n\n" }, ...blocks.slice(1)]),
+  ];
 }
 
 function group(

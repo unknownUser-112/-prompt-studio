@@ -555,4 +555,59 @@ describe("V600 profile matrix", () => {
 
     expect(new TextRenderer().render(document, layout).value).toBe(expected);
   });
+
+  it.each([
+    ["universal", "Universal", "quality-gate.release.de"],
+    ["universal", "Universal", "json.v5611-special.en"],
+    ["geminiNatural", "Gemini Natural", "quality-gate.release.de"],
+    ["geminiPro", "Gemini Pro", "quality-gate.release.de"],
+    ["nanoBananaPro", "Nano Banana Pro", "quality-gate.release.de"],
+    ["nanoBananaPro", "Nano Banana Pro", "json.v5611-special.en"],
+  ])("renders the complete RC-08 execution contract for %s / %s", async (profileId, profile, scenarioId) => {
+    const scenario = GOLDEN_SCENARIOS.find(({ id }) => id === scenarioId)!;
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile, step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const layout = profileId === "universal"
+      ? createUniversalLayout(document)
+      : profileId === "geminiNatural"
+        ? createGeminiNaturalLayout(document, promptLanguage)
+        : profileId === "geminiPro"
+          ? createGeminiProLayout(document, promptLanguage)
+          : createNanoBananaProLayout(document, promptLanguage);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === profileId)!.output;
+    const nano = profileId === "nanoBananaPro";
+    const expectedExecution = nano
+      ? expected.split("\n\n")[0]!
+      : `${expected.split("\n\n===== IMAGE PROMPT =====")[0]}\n\n===== IMAGE PROMPT =====`;
+    const executionLayout = { ...layout, textBlocks: layout.textBlocks?.slice(0, nano ? 1 : 2) };
+
+    expect(state.values).toHaveProperty("model.execution", "execution.generate_single_image");
+    expect(state.trace.entries.find(({ path }) => path === "model.execution")).toMatchObject({ sourceField: "executionInstruction" });
+    expect(new TextRenderer().render(document, executionLayout).value).toBe(expectedExecution);
+  });
 });

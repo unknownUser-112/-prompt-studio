@@ -8,14 +8,23 @@ export function createNanoBananaProLayout(
   document: Readonly<PromptDocument>,
   promptLanguage: PromptLanguage,
 ): ProfileLayout {
+  const execution = document.sections.some((section) => section.fragments.some(({ id }) => id === "execution.single-photograph"));
+  const blocks = [
+    outputContractBlock(promptLanguage === "Deutsch"),
+    primarySubjectBlock(promptLanguage === "Deutsch"),
+  ];
   return {
     id: PROFILE_IDS.nanoBananaPro,
     sections: document.sections.map((section, order) => ({ sectionId: section.id, order })),
-    textBlocks: [
-      outputContractBlock(promptLanguage === "Deutsch"),
-      primarySubjectBlock(promptLanguage === "Deutsch"),
-    ],
+    textBlocks: execution ? withExecutionContract(blocks) : blocks,
   };
+}
+
+function withExecutionContract(blocks: readonly TextLayoutBlock[]): readonly TextLayoutBlock[] {
+  return [
+    { kind: "group", heading: "IMAGE GENERATION EXECUTION", children: [{ kind: "fragment", fragmentId: "execution.single-photograph" }] },
+    ...(blocks.length === 0 ? [] : [{ ...blocks[0]!, separatorBefore: "\n\n" }, ...blocks.slice(1)]),
+  ];
 }
 
 function primarySubjectBlock(german: boolean): TextLayoutBlock {

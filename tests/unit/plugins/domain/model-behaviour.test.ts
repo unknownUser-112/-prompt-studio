@@ -13,6 +13,21 @@ import { createFixedRuntime } from "../../../helpers/fixed-runtime";
 const resolve = (input: unknown, providers: readonly ConstraintProvider[] = [modelBehaviourProvider]) => new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(input, providers);
 
 describe("model-behaviour plugin", () => {
+  const executionContract = [
+    "Generate exactly one single image now.",
+    "Return only the generated image; do not answer with explanatory text.",
+    "Do not analyze, summarize, evaluate, or describe the requested image.",
+    "Do not mention previous attempts and do not announce a later generation attempt.",
+    "All following sections describe the same single photograph.",
+    "The final canvas must contain exactly one continuous photographic frame with one camera distance and one framing. Never satisfy detail requests by adding a second crop or alternate view.",
+    "Do not create a collage, diptych, triptych, split image, contact sheet, grid, comparison, multiple panels, multiple crops, multiple zoom levels, alternate compositions, multiple viewpoints, or repeated versions of the subject.",
+  ].join("\n");
+  const singlePhotographExecutionContract = [
+    "Generate exactly one single photograph now.",
+    "Output one continuous photographic frame only: no collage, no split screen, no diptych, no alternate take, no repeated subject, and no second panel.",
+    "Return only the generated image.",
+  ].join("\n");
+
   it("records the selected model behaviour without inventing a default", async () => {
     const state = await resolve({ model: { behaviour: "strict-json" } });
 
@@ -207,5 +222,40 @@ describe("model-behaviour plugin", () => {
       ? "Kein sichtbarer Text, keine Logos und kein sonstiges Branding."
       : "No visible text, logos, or other branding.");
     expect(brandingFragments[0]?.traceIds).toEqual(["model.behaviour:model-behaviour.selection"]);
+  });
+
+  it("resolves the enabled execution instruction canonically with exact source provenance", async () => {
+    const state = await resolve({ executionInstruction: true }, [modelBehaviourProvider]);
+
+    expect(state.values).toEqual({ model: { execution: "execution.generate_single_image" } });
+    expect(state.trace.entries).toEqual([
+      expect.objectContaining({
+        id: "model.execution:model-behaviour.execution",
+        path: "model.execution",
+        ruleId: "model-behaviour.execution",
+        sourceField: "executionInstruction",
+      }),
+    ]);
+  });
+
+  it("resolves an explicitly disabled execution instruction without materializing an execution fragment", async () => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), executionInstruction: false }, [modelBehaviourProvider]);
+    const fragments = modelBehaviourSection.provide(state)[0]?.fragments ?? [];
+
+    expect(state.values).toHaveProperty("model.execution", "execution.disabled");
+    expect(fragments.some(({ id }) => id === "execution.image-generation" || id === "execution.single-photograph")).toBe(false);
+  });
+
+  it.each(["Deutsch", "English"])("materializes the complete locale-invariant execution contract with exact trace in %s", async (promptLanguage) => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), executionInstruction: true, promptLanguage }, [modelBehaviourProvider]);
+    const first = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "execution.image-generation");
+    const second = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "execution.image-generation");
+    const singlePhotograph = modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "execution.single-photograph");
+
+    expect(first?.text).toBe(executionContract);
+    expect(first?.traceIds).toEqual(["model.execution:model-behaviour.execution"]);
+    expect(second).toEqual(first);
+    expect(singlePhotograph?.text).toBe(singlePhotographExecutionContract);
+    expect(singlePhotograph?.traceIds).toEqual(["model.execution:model-behaviour.execution"]);
   });
 });

@@ -15,6 +15,7 @@ export function createGeminiNaturalLayout(
   const additionalPerson = document.sections.some((section) => section.fragments.some(({ id }) => id === "additional-person.person"));
   const openGarment = document.sections.some((section) => section.fragments.some(({ id }) => id === "garment.state"));
   const authorizedBranding = document.sections.some((section) => section.fragments.some(({ id }) => id === "restrictions.branding-authorized"));
+  const execution = document.sections.some((section) => section.fragments.some(({ id }) => id === "execution.image-generation"));
   const baselineBlocks = german ? germanBlocks(authorizedBranding) : englishBlocks(authorizedBranding);
   const modeBlocks = referenceSheet
     ? referenceSheetBlocks(german)
@@ -24,10 +25,11 @@ export function createGeminiNaturalLayout(
         ? selfieBlocks(baselineBlocks, german)
         : baselineBlocks;
   const primaryBlocks = openGarment ? openGarmentBlocks(modeBlocks, german) : modeBlocks;
+  const finalBlocks = additionalPerson ? additionalPersonBlocks(primaryBlocks, german) : primaryBlocks;
   return {
     id: PROFILE_IDS.geminiNatural,
     sections: document.sections.map((section, order) => ({ sectionId: section.id, order })),
-    textBlocks: additionalPerson ? additionalPersonBlocks(primaryBlocks, german) : primaryBlocks,
+    textBlocks: execution ? withExecutionContract(finalBlocks) : finalBlocks,
   };
 }
 
@@ -166,6 +168,14 @@ function brandingFragment(authorized: boolean): TextLayoutBlock {
   return authorized
     ? fragment("restrictions.branding-authorized", "\n")
     : fragment("restrictions.branding");
+}
+
+function withExecutionContract(blocks: readonly TextLayoutBlock[]): readonly TextLayoutBlock[] {
+  return [
+    group("IMAGE GENERATION EXECUTION", [fragment("execution.image-generation")]),
+    { ...staticBlock("===== IMAGE PROMPT ====="), separatorBefore: "\n\n" },
+    ...(blocks.length === 0 ? [] : [{ ...blocks[0]!, separatorBefore: "\n\n" }, ...blocks.slice(1)]),
+  ];
 }
 
 function group(

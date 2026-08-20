@@ -15,6 +15,20 @@ const SPATIAL_EN = "Credible anatomy and consistent spatial, material, and light
 const CAPTURE_QUALITY_EN = "No artificial skin smoothing, excessive blur, heavy cinematic grading, or watermark.";
 const BRANDING_DE = "Kein sichtbarer Text, keine Logos und kein sonstiges Branding.";
 const BRANDING_EN = "No visible text, logos, or other branding.";
+const IMAGE_GENERATION_EXECUTION = [
+  "Generate exactly one single image now.",
+  "Return only the generated image; do not answer with explanatory text.",
+  "Do not analyze, summarize, evaluate, or describe the requested image.",
+  "Do not mention previous attempts and do not announce a later generation attempt.",
+  "All following sections describe the same single photograph.",
+  "The final canvas must contain exactly one continuous photographic frame with one camera distance and one framing. Never satisfy detail requests by adding a second crop or alternate view.",
+  "Do not create a collage, diptych, triptych, split image, contact sheet, grid, comparison, multiple panels, multiple crops, multiple zoom levels, alternate compositions, multiple viewpoints, or repeated versions of the subject.",
+].join("\n");
+const SINGLE_PHOTOGRAPH_EXECUTION = [
+  "Generate exactly one single photograph now.",
+  "Output one continuous photographic frame only: no collage, no split screen, no diptych, no alternate take, no repeated subject, and no second panel.",
+  "Return only the generated image.",
+].join("\n");
 
 export const modelBehaviourSection: PromptSectionProvider = {
   id: "model-behaviour",
@@ -22,6 +36,7 @@ export const modelBehaviourSection: PromptSectionProvider = {
     const german = state.facts.values.promptLanguage === "Deutsch";
     const lens = resolvedString(state.values, "camera.lens");
     const photoLook = resolvedString(state.values, "camera.photoLook");
+    const execution = resolvedString(state.values, "model.execution");
     const branding = resolvedBranding(state.values);
     const captureCharacter = photoLook === "photoLook.warm" ? WARM_CAPTURE_DE : CAPTURE_DE;
     const bodyMechanics = lens === "lens.portrait_85mm" ? TELE_BODY_DE : BODY_DE;
@@ -29,7 +44,14 @@ export const modelBehaviourSection: PromptSectionProvider = {
     const fragment = (id: string, text: string, paths: readonly string[] = ["model.behaviour"]) => (
       createResolvedFragmentDraft(state, "model-behaviour", id, text, paths)
     );
+    const executionFragments = execution === "execution.generate_single_image"
+      ? [
+        fragment("execution.image-generation", IMAGE_GENERATION_EXECUTION, ["model.execution"]),
+        fragment("execution.single-photograph", SINGLE_PHOTOGRAPH_EXECUTION, ["model.execution"]),
+      ]
+      : [];
     const fragments = german ? [
+      ...executionFragments,
       fragment("style.general", GENERAL_DE),
       fragment(
         "style.capture-character",
@@ -51,6 +73,7 @@ export const modelBehaviourSection: PromptSectionProvider = {
         ? fragment("restrictions.branding", brandingRestriction)
         : fragment("restrictions.branding-authorized", brandingRestriction, brandTracePaths(branding)),
     ] : [
+      ...executionFragments,
       fragment("style.general", GENERAL_EN),
       fragment("realism.natural-irregularity", "Natural irregularity takes priority over flawless visual perfection."),
       fragment("realism.spatial-material-light", SPATIAL_EN),
