@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { JsonPromptProjectionBuilder } from "../../../src/application/projections/json-prompt-projection-builder";
+import type { JsonProfileLayout } from "../../../src/domain/contracts/prompt/json-layout";
+import type { JsonPromptProjectionMode } from "../../../src/domain/contracts/prompt/json-projection";
 import { ConstraintEngine } from "../../../src/domain/engines/constraint-engine";
 import { PromptAstBuilder } from "../../../src/domain/engines/prompt-ast-builder";
 import { createResolvedStateBuilder } from "../../../src/domain/engines/resolved-state-builder";
@@ -26,6 +28,7 @@ import { sceneLightingSection } from "../../../src/plugins/scene-lighting/sectio
 import { selfieProvider } from "../../../src/plugins/selfie/rules";
 import { selfieSection } from "../../../src/plugins/selfie/sections";
 import { createStandardJsonLayout } from "../../../src/profiles/standard-json";
+import { createSafeJsonLayout } from "../../../src/profiles/safe-json";
 import { JsonRenderer } from "../../../src/renderers/json-renderer";
 import { GOLDEN_SCENARIOS } from "../../golden/scenarios";
 import { createFixedRuntime } from "../../helpers/fixed-runtime";
@@ -42,41 +45,59 @@ const matrix = JSON.parse(readFileSync("tests/golden/fixtures/v500.6.11/matrix.j
 
 describe("Standard JSON profile", () => {
   it.each(GOLDEN_SCENARIOS)("renders the authoritative envelope byte-identically: $id", async (scenario) => {
-    const scenarioId = scenario.id;
-    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
-    const state = await new ConstraintEngine({
-      runtime: createFixedRuntime().runtime,
-      stateBuilder: createResolvedStateBuilder(),
-    }).resolve(
-      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile: "Standard JSON", step: 9 },
-      [
-        additionalPersonProvider,
-        adaptiveRealismProvider,
-        brandProvider,
-        cameraProvider,
-        characterSheetProvider,
-        garmentProvider,
-        materialPhysicsProvider,
-        modelBehaviourProvider,
-        sceneLightingProvider,
-        selfieProvider,
-      ],
-    );
-    const document = new PromptAstBuilder().build(state, [
-      additionalPersonSection,
-      adaptiveRealismSection,
-      cameraSection,
-      characterSheetSection,
-      garmentSection,
-      materialPhysicsSection,
-      modelBehaviourSection,
-      sceneLightingSection,
-      selfieSection,
-    ]);
-    const projection = new JsonPromptProjectionBuilder().build(document, state);
-    const rendered = new JsonRenderer().render(projection, createStandardJsonLayout(projection.mode));
-    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "standardJson")!.output;
-
-    expect(rendered.serialized).toBe(expected);
+    expect(await renderScenario(scenario, "Standard JSON", createStandardJsonLayout))
+      .toBe(goldenOutput(scenario.id, "standardJson"));
   });
 });
+
+describe("Safe JSON profile", () => {
+  it.each(GOLDEN_SCENARIOS)("renders the authoritative envelope byte-identically: $id", async (scenario) => {
+    expect(await renderScenario(scenario, "Safe JSON", createSafeJsonLayout))
+      .toBe(goldenOutput(scenario.id, "safeJson"));
+  });
+});
+
+async function renderScenario(
+  scenario: (typeof GOLDEN_SCENARIOS)[number],
+  sourceProfile: string,
+  layoutFactory: (mode: JsonPromptProjectionMode) => JsonProfileLayout,
+): Promise<string> {
+  const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+  const state = await new ConstraintEngine({
+    runtime: createFixedRuntime().runtime,
+    stateBuilder: createResolvedStateBuilder(),
+  }).resolve(
+    { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile: sourceProfile, step: 9 },
+    [
+      additionalPersonProvider,
+      adaptiveRealismProvider,
+      brandProvider,
+      cameraProvider,
+      characterSheetProvider,
+      garmentProvider,
+      materialPhysicsProvider,
+      modelBehaviourProvider,
+      sceneLightingProvider,
+      selfieProvider,
+    ],
+  );
+  const document = new PromptAstBuilder().build(state, [
+    additionalPersonSection,
+    adaptiveRealismSection,
+    cameraSection,
+    characterSheetSection,
+    garmentSection,
+    materialPhysicsSection,
+    modelBehaviourSection,
+    sceneLightingSection,
+    selfieSection,
+  ]);
+  const projection = new JsonPromptProjectionBuilder().build(document, state);
+  return new JsonRenderer().render(projection, layoutFactory(projection.mode)).serialized;
+}
+
+function goldenOutput(scenarioId: string, profileId: string): string {
+  const entry = matrix.entries.find((candidate) => candidate.scenarioId === scenarioId && candidate.profileId === profileId);
+  if (entry === undefined) throw new Error(`Missing Golden entry: ${scenarioId}/${profileId}`);
+  return entry.output;
+}
