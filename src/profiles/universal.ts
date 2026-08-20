@@ -2,6 +2,8 @@ import type { ProfileLayout, TextLayoutBlock } from "../domain/contracts/prompt/
 import type { PromptDocument } from "../domain/contracts/prompt/prompt-document";
 import { PROFILE_IDS } from "./profile-ids";
 
+type PromptLanguage = "Deutsch" | "English" | string;
+
 const UNIVERSAL_SLOT_ORDER = [
   "camera",
   "character-sheet-a-subject",
@@ -33,7 +35,10 @@ const UNIVERSAL_SEPARATOR_BEFORE_BY_SLOT: Partial<Record<(typeof UNIVERSAL_SLOT_
   "additional-person": "\n\n",
 };
 
-export function createUniversalLayout(document: Readonly<PromptDocument>): ProfileLayout {
+export function createUniversalLayout(
+  document: Readonly<PromptDocument>,
+  promptLanguage: PromptLanguage,
+): ProfileLayout {
   const sectionsBySlot = new Map(document.sections.map((section) => [section.slotId, section]));
   const sections = UNIVERSAL_SLOT_ORDER.flatMap((slotId) => {
     const section = sectionsBySlot.get(slotId);
@@ -43,12 +48,71 @@ export function createUniversalLayout(document: Readonly<PromptDocument>): Profi
     order,
     separatorBefore: UNIVERSAL_SEPARATOR_BEFORE_BY_SLOT[slotId],
   }));
+  const german = promptLanguage === "Deutsch";
+  const referenceSheet = hasFragment(document, "character.reference-sheet");
+  const singleReference = hasFragment(document, "character.single-reference");
   const execution = document.sections.some((section) => section.fragments.some(({ id }) => id === "execution.image-generation"));
+  const baselineBlocks = sections.map((section) => ({
+    kind: "section" as const,
+    sectionId: section.sectionId,
+    separatorBefore: section.separatorBefore,
+  }));
+  const modeBlocks = referenceSheet
+    ? referenceSheetBlocks(german)
+    : singleReference
+      ? singleReferenceBlocks(baselineBlocks, german)
+      : baselineBlocks;
   return {
     id: PROFILE_IDS.universal,
     sections,
-    ...(execution ? { textBlocks: withExecutionContract(sections.map((section) => ({ kind: "section" as const, sectionId: section.sectionId, separatorBefore: section.separatorBefore }))) } : {}),
+    ...((referenceSheet || singleReference || execution)
+      ? { textBlocks: execution ? withExecutionContract(modeBlocks) : modeBlocks }
+      : {}),
   };
+}
+
+function hasFragment(document: Readonly<PromptDocument>, fragmentId: string): boolean {
+  return document.sections.some((section) => section.fragments.some(({ id }) => id === fragmentId));
+}
+
+function singleReferenceBlocks(blocks: readonly TextLayoutBlock[], german: boolean): readonly TextLayoutBlock[] {
+  return [
+    ...blocks.slice(0, -1),
+    group(german ? "EINZELNES REFERENZFOTO" : "SINGLE REFERENCE CAPTURE", [fragment("character.single-reference")]),
+    ...blocks.slice(-1),
+  ];
+}
+
+function referenceSheetBlocks(german: boolean): readonly TextLayoutBlock[] {
+  return [
+    group(german ? "CHARAKTER-REFERENZTAFEL" : "CHARACTER REFERENCE SHEET", [fragment("character.reference-sheet")]),
+    group(german ? "FOTOGRAFISCHE AUFNAHME" : "PHOTOGRAPHIC CAPTURE", [fragment("character.reference-capture")]),
+    group(undefined, [
+      fragment("character.subject"),
+      fragment("garment.outfit"),
+      fragment("garment.material-behaviour"),
+      fragment("character.reference-consistency"),
+      fragment("character.reference-layout"),
+      { ...fragment("material.physics"), prefix: german ? "Materialphysik: " : "Material physics: " },
+      { ...fragment("realism.adaptive"), prefix: german ? "Realismus: " : "Realism: " },
+      fragment("restrictions.reference-views"),
+    ], " "),
+    group(german ? "GESICHTSMERKMALE" : "FACIAL FEATURES", [fragment("character.facial-features")]),
+    ...(!german ? [group("SKIN AND CAPTURE APPEARANCE", [fragment("realism.capture-appearance")])] : []),
+    fragment("restrictions.additional-people", "\n\n"),
+  ];
+}
+
+function fragment(fragmentId: string, separatorBefore?: string): TextLayoutBlock {
+  return { kind: "fragment", fragmentId, ...(separatorBefore === undefined ? {} : { separatorBefore }) };
+}
+
+function group(
+  heading: string | undefined,
+  children: readonly TextLayoutBlock[],
+  separatorBetweenChildren = "\n",
+): TextLayoutBlock {
+  return { kind: "group", heading, separatorBefore: "\n\n", separatorBetweenChildren, children };
 }
 
 function withExecutionContract(blocks: readonly TextLayoutBlock[]): readonly TextLayoutBlock[] {

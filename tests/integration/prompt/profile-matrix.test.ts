@@ -67,7 +67,7 @@ describe("V600 profile matrix", () => {
     ]);
     const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === "universal")!.output;
 
-    expect(new TextRenderer().render(document, createUniversalLayout(document)).value).toBe(expected);
+    expect(new TextRenderer().render(document, createUniversalLayout(document, promptLanguage)).value).toBe(expected);
   });
 
   it.each([
@@ -495,7 +495,7 @@ describe("V600 profile matrix", () => {
       selfieSection,
     ]);
     const layout = profileId === "universal"
-      ? createUniversalLayout(document)
+      ? createUniversalLayout(document, promptLanguage)
       : profileId === "geminiNatural"
         ? createGeminiNaturalLayout(document, promptLanguage)
         : createGeminiProLayout(document, promptLanguage);
@@ -547,7 +547,7 @@ describe("V600 profile matrix", () => {
       selfieSection,
     ]);
     const layout = profileId === "universal"
-      ? createUniversalLayout(document)
+      ? createUniversalLayout(document, promptLanguage)
       : profileId === "geminiNatural"
         ? createGeminiNaturalLayout(document, promptLanguage)
         : createGeminiProLayout(document, promptLanguage);
@@ -593,7 +593,7 @@ describe("V600 profile matrix", () => {
       selfieSection,
     ]);
     const layout = profileId === "universal"
-      ? createUniversalLayout(document)
+      ? createUniversalLayout(document, promptLanguage)
       : profileId === "geminiNatural"
         ? createGeminiNaturalLayout(document, promptLanguage)
         : profileId === "geminiPro"
@@ -609,5 +609,55 @@ describe("V600 profile matrix", () => {
     expect(state.values).toHaveProperty("model.execution", "execution.generate_single_image");
     expect(state.trace.entries.find(({ path }) => path === "model.execution")).toMatchObject({ sourceField: "executionInstruction" });
     expect(new TextRenderer().render(document, executionLayout).value).toBe(expectedExecution);
+  });
+
+  it.each([
+    ["universal", "Universal", "character-sheet.compact.en"],
+    ["universal", "Universal", "character-sheet.en"],
+    ["geminiPro", "Gemini Pro", "character-sheet.compact.en"],
+    ["geminiPro", "Gemini Pro", "character-sheet.en"],
+    ["universal", "Universal", "single-reference.de"],
+    ["universal", "Universal", "single-reference.en"],
+    ["geminiPro", "Gemini Pro", "single-reference.de"],
+    ["geminiPro", "Gemini Pro", "single-reference.en"],
+    ["nanoBananaPro", "Nano Banana Pro", "character-sheet.compact.en"],
+    ["nanoBananaPro", "Nano Banana Pro", "character-sheet.en"],
+  ])("renders Batch-5 reference parity for %s / %s", async (profileId, profile, scenarioId) => {
+    const scenario = GOLDEN_SCENARIOS.find(({ id }) => id === scenarioId)!;
+    const promptLanguage = scenario.language === "Deutsch" ? "Deutsch" : "English";
+    const state = await new ConstraintEngine({ runtime: createFixedRuntime().runtime, stateBuilder: createResolvedStateBuilder() }).resolve(
+      { ...createCanonicalProjectStateV5Values(), ...scenario.input, promptLanguage, profile, step: 9 },
+      [
+        additionalPersonProvider,
+        adaptiveRealismProvider,
+        brandProvider,
+        cameraProvider,
+        characterSheetProvider,
+        garmentProvider,
+        materialPhysicsProvider,
+        modelBehaviourProvider,
+        sceneLightingProvider,
+        selfieProvider,
+      ],
+    );
+    const document = new PromptAstBuilder().build(state, [
+      additionalPersonSection,
+      adaptiveRealismSection,
+      cameraSection,
+      characterSheetSection,
+      garmentSection,
+      materialPhysicsSection,
+      modelBehaviourSection,
+      sceneLightingSection,
+      selfieSection,
+    ]);
+    const layout = profileId === "universal"
+      ? createUniversalLayout(document, promptLanguage)
+      : profileId === "geminiPro"
+        ? createGeminiProLayout(document, promptLanguage)
+        : createNanoBananaProLayout(document, promptLanguage);
+    const expected = matrix.entries.find((entry) => entry.scenarioId === scenarioId && entry.profileId === profileId)!.output;
+
+    expect(new TextRenderer().render(document, layout).value).toBe(expected);
   });
 });

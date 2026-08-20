@@ -8,16 +8,47 @@ export function createNanoBananaProLayout(
   document: Readonly<PromptDocument>,
   promptLanguage: PromptLanguage,
 ): ProfileLayout {
+  const german = promptLanguage === "Deutsch";
+  const referenceSheet = document.sections.some((section) => section.fragments.some(({ id }) => id === "character.reference-sheet"));
   const execution = document.sections.some((section) => section.fragments.some(({ id }) => id === "execution.single-photograph"));
-  const blocks = [
-    outputContractBlock(promptLanguage === "Deutsch"),
-    primarySubjectBlock(promptLanguage === "Deutsch"),
-  ];
+  const blocks = referenceSheet
+    ? referenceSheetBlocks(german)
+    : [outputContractBlock(german), primarySubjectBlock(german)];
   return {
     id: PROFILE_IDS.nanoBananaPro,
     sections: document.sections.map((section, order) => ({ sectionId: section.id, order })),
     textBlocks: execution ? withExecutionContract(blocks) : blocks,
   };
+}
+
+function referenceSheetBlocks(german: boolean): readonly TextLayoutBlock[] {
+  return [
+    group(german ? "CHARAKTER-REFERENZTAFEL" : "CHARACTER REFERENCE SHEET", [fragment("character.reference-sheet")]),
+    group(german ? "FOTOGRAFISCHE AUFNAHME" : "PHOTOGRAPHIC CAPTURE", [fragment("character.reference-capture")]),
+    group(undefined, [
+      fragment("character.subject"),
+      fragment("garment.outfit"),
+      fragment("garment.material-behaviour"),
+      fragment("character.reference-consistency"),
+      fragment("character.reference-layout"),
+      { ...fragment("material.physics"), prefix: german ? "Materialphysik: " : "Material physics: " },
+      { ...fragment("realism.adaptive"), prefix: german ? "Realismus: " : "Realism: " },
+      fragment("restrictions.reference-views"),
+    ], " "),
+    fragment("restrictions.additional-people", "\n\n"),
+  ];
+}
+
+function fragment(fragmentId: string, separatorBefore?: string): TextLayoutBlock {
+  return { kind: "fragment", fragmentId, ...(separatorBefore === undefined ? {} : { separatorBefore }) };
+}
+
+function group(
+  heading: string | undefined,
+  children: readonly TextLayoutBlock[],
+  separatorBetweenChildren = "\n",
+): TextLayoutBlock {
+  return { kind: "group", heading, separatorBefore: "\n\n", separatorBetweenChildren, children };
 }
 
 function withExecutionContract(blocks: readonly TextLayoutBlock[]): readonly TextLayoutBlock[] {

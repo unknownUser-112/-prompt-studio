@@ -9,14 +9,52 @@ export function createGeminiProLayout(
   promptLanguage: PromptLanguage,
 ): ProfileLayout {
   const german = promptLanguage === "Deutsch";
+  const referenceSheet = hasFragment(document, "character.reference-sheet");
+  const singleReference = hasFragment(document, "character.single-reference");
   const authorizedBranding = document.sections.some((section) => section.fragments.some(({ id }) => id === "restrictions.branding-authorized"));
   const execution = document.sections.some((section) => section.fragments.some(({ id }) => id === "execution.image-generation"));
-  const blocks = german ? germanBlocks(authorizedBranding) : englishBlocks(authorizedBranding);
+  const baselineBlocks = german ? germanBlocks(authorizedBranding) : englishBlocks(authorizedBranding);
+  const blocks = referenceSheet
+    ? referenceSheetBlocks(german)
+    : singleReference
+      ? singleReferenceBlocks(baselineBlocks, german)
+      : baselineBlocks;
   return {
     id: PROFILE_IDS.geminiPro,
     sections: document.sections.map((section, order) => ({ sectionId: section.id, order })),
     textBlocks: execution ? withExecutionContract(blocks) : blocks,
   };
+}
+
+function hasFragment(document: Readonly<PromptDocument>, fragmentId: string): boolean {
+  return document.sections.some((section) => section.fragments.some(({ id }) => id === fragmentId));
+}
+
+function singleReferenceBlocks(blocks: readonly TextLayoutBlock[], german: boolean): readonly TextLayoutBlock[] {
+  const reference = group(german ? "EINZELNES REFERENZFOTO" : "SINGLE REFERENCE CAPTURE", [fragment("character.single-reference")]);
+  return german
+    ? [...blocks.slice(0, -1), reference, ...blocks.slice(-1)]
+    : [...blocks, reference];
+}
+
+function referenceSheetBlocks(german: boolean): readonly TextLayoutBlock[] {
+  return [
+    group(german ? "CHARAKTER-REFERENZTAFEL" : "CHARACTER REFERENCE SHEET", [fragment("character.reference-sheet")]),
+    group(german ? "FOTOGRAFISCHE AUFNAHME" : "PHOTOGRAPHIC CAPTURE", [fragment("character.reference-capture")]),
+    group(undefined, [
+      fragment("character.subject"),
+      fragment("garment.outfit"),
+      fragment("garment.material-behaviour"),
+      fragment("character.reference-consistency"),
+      fragment("character.reference-layout"),
+      { ...fragment("material.physics"), prefix: german ? "Materialphysik: " : "Material physics: " },
+      { ...fragment("realism.adaptive"), prefix: german ? "Realismus: " : "Realism: " },
+      fragment("restrictions.reference-views"),
+    ], " "),
+    group(german ? "GESICHTSMERKMALE" : "FACIAL FEATURES", [fragment("character.facial-features")]),
+    ...(!german ? [group("SKIN AND CAPTURE APPEARANCE", [fragment("realism.capture-appearance")])] : []),
+    fragment("restrictions.additional-people", "\n\n"),
+  ];
 }
 
 function germanBlocks(authorizedBranding: boolean): readonly TextLayoutBlock[] {
@@ -111,7 +149,7 @@ function withExecutionContract(blocks: readonly TextLayoutBlock[]): readonly Tex
 }
 
 function group(
-  headingText: string,
+  headingText: string | undefined,
   children: readonly TextLayoutBlock[],
   separatorBetweenChildren = "\n",
 ): TextLayoutBlock {
