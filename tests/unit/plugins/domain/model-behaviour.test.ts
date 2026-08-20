@@ -28,6 +28,8 @@ describe("model-behaviour plugin", () => {
     "Output one continuous photographic frame only: no collage, no split screen, no diptych, no alternate take, no repeated subject, and no second panel.",
     "Return only the generated image.",
   ].join("\n");
+  const negativePrompt = "anatomy errors, duplicate limbs, distorted proportions, plastic skin, over-smoothed skin, deformed hands, extra fingers, text, watermark, logo, caption, signature, identity drift";
+  const authorizedNegativePrompt = "anatomy errors, duplicate limbs, distorted proportions, plastic skin, over-smoothed skin, deformed hands, extra fingers, watermark, caption, signature, identity drift, unrelated text, additional logos, branding on unrequested garments, watermark";
 
   it("records the selected model behaviour without inventing a default", async () => {
     const state = await resolve({ model: { behaviour: "strict-json" } });
@@ -57,8 +59,9 @@ describe("model-behaviour plugin", () => {
         "realism.compact-photographic",
         "restrictions.branding",
         "restrictions.compact-final",
+        "restrictions.negative-prompt",
       ]
-      : ["style.general", "realism.natural-irregularity", "realism.spatial-material-light", "realism.photographic-character", "restrictions.capture-quality", "restrictions.capture-quality-detailed", "restrictions.preservation-contract", "realism.compact-photographic", "restrictions.branding", "restrictions.compact-final"]);
+      : ["style.general", "realism.natural-irregularity", "realism.spatial-material-light", "realism.photographic-character", "restrictions.capture-quality", "restrictions.capture-quality-detailed", "restrictions.preservation-contract", "realism.compact-photographic", "restrictions.branding", "restrictions.compact-final", "restrictions.negative-prompt"]);
     expect(first.fragments?.every(({ traceIds }) => traceIds.length === 1)).toBe(true);
     expect(first.fragments?.every(({ text }) => text.length > 0)).toBe(true);
     expect(first.fragments?.every(({ id }) => !id.includes("gemini"))).toBe(true);
@@ -299,6 +302,44 @@ describe("model-behaviour plugin", () => {
       ],
     });
     expect(second).toEqual(first);
+  });
+
+  it("materializes only the default negative prompt with exact provenance", async () => {
+    const state = await resolve({ ...createCanonicalProjectStateV5Values(), promptLanguage: "English" }, [brandProvider, modelBehaviourProvider]);
+    const fragments = modelBehaviourSection.provide(state)[0]?.fragments ?? [];
+    const first = fragments.find(({ id }) => id === "restrictions.negative-prompt");
+
+    expect(first).toEqual({
+      id: "restrictions.negative-prompt",
+      text: negativePrompt,
+      traceIds: ["model.behaviour:model-behaviour.selection"],
+    });
+    expect(fragments.map(({ id }) => id)).not.toContain("restrictions.negative-prompt-authorized");
+    expect(modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "restrictions.negative-prompt")).toEqual(first);
+  });
+
+  it("materializes only the authorized-branding negative prompt with exact provenance", async () => {
+    const state = await resolve({
+      ...createCanonicalProjectStateV5Values(),
+      promptLanguage: "English",
+      tshirtBrand: "Tommy Hilfiger",
+      brandVisibility: "Dezent sichtbar",
+      brandPlacement: "Brustbereich / Vorderseite",
+    }, [brandProvider, modelBehaviourProvider]);
+    const fragments = modelBehaviourSection.provide(state)[0]?.fragments ?? [];
+    const first = fragments.find(({ id }) => id === "restrictions.negative-prompt-authorized");
+
+    expect(first).toEqual({
+      id: "restrictions.negative-prompt-authorized",
+      text: authorizedNegativePrompt,
+      traceIds: [
+        "brand.allowedGarment:brand.garment-binding",
+        "brand.name:brand.name",
+        "model.behaviour:model-behaviour.selection",
+      ],
+    });
+    expect(fragments.map(({ id }) => id)).not.toContain("restrictions.negative-prompt");
+    expect(modelBehaviourSection.provide(state)[0]?.fragments?.find(({ id }) => id === "restrictions.negative-prompt-authorized")).toEqual(first);
   });
 
   it.each([

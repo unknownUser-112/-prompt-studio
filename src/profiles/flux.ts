@@ -5,15 +5,21 @@ import { PROFILE_IDS } from "./profile-ids";
 type PromptLanguage = "Deutsch" | "English" | string;
 
 export function createFluxLayout(document: Readonly<PromptDocument>, promptLanguage: PromptLanguage): ProfileLayout {
-  const german = promptLanguage === "Deutsch";
-  const referenceSheet = hasFragment(document, "character.reference-sheet");
   const execution = hasFragment(document, "execution.image-generation");
-  const blocks = referenceSheet ? referenceBlocks() : normalBlocks(document, german);
+  const blocks = createFluxContentBlocks(document, promptLanguage);
   return {
     id: PROFILE_IDS.flux,
     sections: document.sections.map((section, order) => ({ sectionId: section.id, order })),
-    textBlocks: execution ? withExecutionContract(blocks) : blocks,
+    textBlocks: execution ? withFluxExecutionContract(blocks) : blocks,
   };
+}
+
+export function createFluxContentBlocks(
+  document: Readonly<PromptDocument>,
+  promptLanguage: PromptLanguage,
+): readonly TextLayoutBlock[] {
+  const german = promptLanguage === "Deutsch";
+  return hasFragment(document, "character.reference-sheet") ? referenceBlocks() : normalBlocks(document, german);
 }
 
 function normalBlocks(document: Readonly<PromptDocument>, german: boolean): readonly TextLayoutBlock[] {
@@ -119,7 +125,7 @@ function group(
   return { kind: "group", heading: headingText, separatorBefore, separatorBetweenChildren, children };
 }
 
-function withExecutionContract(blocks: readonly TextLayoutBlock[]): readonly TextLayoutBlock[] {
+export function withFluxExecutionContract(blocks: readonly TextLayoutBlock[]): readonly TextLayoutBlock[] {
   return [
     group("IMAGE GENERATION EXECUTION", [fragment("execution.image-generation")]),
     { ...heading("===== IMAGE PROMPT ====="), separatorBefore: "\n\n" },

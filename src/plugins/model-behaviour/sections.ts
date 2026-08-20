@@ -20,6 +20,8 @@ const COMPACT_HUMAN_DETAIL_DE = "natürlicher Haut-Look mit glaubwürdiger Struk
 const COMPACT_REALISM_EN = "Believable anatomy, exact selected body proportions, realistic garment drape, natural skin and hair texture, and one consistent light source. No CGI-like perfection, artificial skin smoothing, or excessive sharpening.";
 const COMPACT_FINAL_DE = "Keine sichtbaren Texte, Logos oder Wasserzeichen.";
 const COMPACT_FINAL_EN = "No visible text, logos, or watermark.";
+const NEGATIVE_PROMPT = "anatomy errors, duplicate limbs, distorted proportions, plastic skin, over-smoothed skin, deformed hands, extra fingers, text, watermark, logo, caption, signature, identity drift";
+const AUTHORIZED_NEGATIVE_PROMPT = "anatomy errors, duplicate limbs, distorted proportions, plastic skin, over-smoothed skin, deformed hands, extra fingers, watermark, caption, signature, identity drift, unrelated text, additional logos, branding on unrequested garments, watermark";
 const PRESERVATION_CONTRACT_DE = "Bewahre Identität, sichtbare Anatomie, Pose, Outfit und Raumgeometrie. Füge keine nicht spezifizierten Personen, Kleidungsstücke, Accessoires, Texte, Logos oder Wasserzeichen hinzu.";
 const PRESERVATION_CONTRACT_EN = "Preserve identity, visible anatomy, pose, outfit, and spatial geometry. Do not add unspecified garments, accessories, text, logos, or watermarks.";
 const IMAGE_GENERATION_EXECUTION = [
@@ -87,6 +89,9 @@ export const modelBehaviourSection: PromptSectionProvider = {
       branding === undefined
         ? fragment("restrictions.compact-final", COMPACT_FINAL_DE)
         : fragment("restrictions.compact-final-authorized", compactBrandedRestriction(branding, true), ["brand.allowedGarment", "brand.name"]),
+      branding === undefined
+        ? fragment("restrictions.negative-prompt", NEGATIVE_PROMPT)
+        : fragment("restrictions.negative-prompt-authorized", AUTHORIZED_NEGATIVE_PROMPT, ["model.behaviour", "brand.allowedGarment", "brand.name"]),
     ] : [
       ...executionFragments,
       fragment("style.general", GENERAL_EN),
@@ -103,6 +108,9 @@ export const modelBehaviourSection: PromptSectionProvider = {
       branding === undefined
         ? fragment("restrictions.compact-final", COMPACT_FINAL_EN)
         : fragment("restrictions.compact-final-authorized", compactBrandedRestriction(branding, false), ["brand.allowedGarment", "brand.name"]),
+      branding === undefined
+        ? fragment("restrictions.negative-prompt", NEGATIVE_PROMPT)
+        : fragment("restrictions.negative-prompt-authorized", AUTHORIZED_NEGATIVE_PROMPT, ["model.behaviour", "brand.allowedGarment", "brand.name"]),
     ];
     return [createResolvedSectionDraft(state, "model-behaviour", `${sectionText(german, lens, photoLook, branding, brandingRestriction)}\n`, fragments)];
   },
